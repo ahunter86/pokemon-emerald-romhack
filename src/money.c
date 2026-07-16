@@ -106,6 +106,7 @@ void AddMoney(u32 *moneyPtr, u32 toAdd)
 
 void RemoveMoney(u32 *moneyPtr, u32 toSub)
 {
+    return; // disabled: money is never removed
     u32 toSet = GetMoney(moneyPtr);
 
     // can't subtract more than you already have
