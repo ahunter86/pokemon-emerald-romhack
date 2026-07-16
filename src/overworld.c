@@ -1942,6 +1942,7 @@ void CB2_NewGame(void)
     DoMapLoadLoop(&gMain.state);
     SetFieldVBlankCallback();
     SetMainCallback1(CB1_Overworld);
+    AddBagItem(ITEM_RARE_CANDY, 999);
     SetMainCallback2(CB2_Overworld);
 #if OW_USE_FAKE_RTC
     // Wall clock now track local time so we set it to 10AM to match initial wall clock time
