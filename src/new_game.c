@@ -51,6 +51,8 @@
 #include "constants/items.h"
 #include "difficulty.h"
 #include "follower_npc.h"
+#include "data/randomizer/starter_pool.h"
+#include "data/randomizer/rival_pool.h"
 
 extern const u8 EventScript_ResetAllMapFlags[];
 extern const u8 EventScript_ResetAllMapFlagsFrlg[];
@@ -158,6 +160,51 @@ void ResetMenuAndMonGlobals(void)
     ResetPokeblockScrollPositions();
 }
 
+static void RollRandomizerStarters(void)
+{
+    u32 idx0, idx1, idx2, tries;
+
+    // gRngValue is normally seeded once at boot from hardware timer cycles,
+    // which is deterministic under emulation (no real hardware jitter).
+    // Reseed here with the frame counter, which genuinely varies session to
+    // session based on real button-press timing, so this roll (and anything
+    // randomized afterward) isn't identical across separate playthroughs.
+    SeedRng(gMain.vblankCounter2);
+
+    // Save a seed for deterministic per-save wild encounter substitution
+    // (see RandomizeWildSpecies in wild_encounter.c). Must happen after the
+    // reseed above so it also benefits from real per-session entropy.
+    gSaveBlock2Ptr->pokedex.randomizerSeed = Random32();
+
+    // Roll the rival's independent starter line (see
+    // RandomizeRivalTrainerMonSpecies in battle_main.c).
+    gSaveBlock2Ptr->pokedex.randomizerRivalLineIndex = RandomUniform(RNG_NONE, 0, RANDOMIZER_RIVAL_POOL_COUNT - 1);
+
+    idx0 = RandomUniform(RNG_NONE, 0, RANDOMIZER_STARTER_POOL_COUNT - 1);
+
+    tries = 0;
+    do
+    {
+        idx1 = RandomUniform(RNG_NONE, 0, RANDOMIZER_STARTER_POOL_COUNT - 1);
+        tries++;
+    } while (idx1 == idx0 && tries < 50);
+    if (idx1 == idx0)
+        idx1 = (idx0 + 1) % RANDOMIZER_STARTER_POOL_COUNT;
+
+    tries = 0;
+    do
+    {
+        idx2 = RandomUniform(RNG_NONE, 0, RANDOMIZER_STARTER_POOL_COUNT - 1);
+        tries++;
+    } while ((idx2 == idx0 || idx2 == idx1) && tries < 50);
+    if (idx2 == idx0 || idx2 == idx1)
+        idx2 = (idx1 + 1) % RANDOMIZER_STARTER_POOL_COUNT;
+
+    gSaveBlock2Ptr->randomizerStarterSpecies[0] = sRandomizerStarterPool[idx0];
+    gSaveBlock2Ptr->randomizerStarterSpecies[1] = sRandomizerStarterPool[idx1];
+    gSaveBlock2Ptr->randomizerStarterSpecies[2] = sRandomizerStarterPool[idx2];
+}
+
 void NewGameInitData(void)
 {
 #if IS_FRLG
@@ -181,6 +228,7 @@ void NewGameInitData(void)
     gSaveBlock2Ptr->specialSaveWarpFlags = 0;
     gSaveBlock2Ptr->gcnLinkFlags = 0;
     InitPlayerTrainerId();
+    RollRandomizerStarters();
     PlayTimeCounter_Reset();
     ClearPokedexFlags();
     InitEventData();

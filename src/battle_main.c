@@ -15,6 +15,7 @@
 #include "battle_setup.h"
 #include "battle_tower.h"
 #include "battle_z_move.h"
+#include "data/randomizer/rival_pool.h"
 #include "battle_gimmick.h"
 #include "berry.h"
 #include "bg.h"
@@ -1861,6 +1862,42 @@ void CustomTrainerPartyAssignMoves(struct Pokemon *mon, const struct TrainerMon 
     }
 }
 
+// Maps a vanilla starter-line species to its evolution stage (0/1/2), or
+// 0xFF if it's not part of the starter line (i.e. some other party member
+// that shouldn't be touched by the rival randomizer).
+static u8 GetRandomizerRivalStage(enum Species species)
+{
+    switch (species)
+    {
+    case SPECIES_TREECKO:
+    case SPECIES_TORCHIC:
+    case SPECIES_MUDKIP:
+        return 0;
+    case SPECIES_GROVYLE:
+    case SPECIES_COMBUSKEN:
+    case SPECIES_MARSHTOMP:
+        return 1;
+    case SPECIES_SCEPTILE:
+    case SPECIES_BLAZIKEN:
+    case SPECIES_SWAMPERT:
+        return 2;
+    default:
+        return 0xFF;
+    }
+}
+
+// Substitutes the rival's starter-line species (at whichever evolution
+// stage the vanilla data specifies) with this save's randomly rolled
+// rival line. Leaves any other trainer's mon (species not part of the
+// vanilla starter line) untouched.
+static enum Species RandomizeRivalTrainerMonSpecies(enum Species species)
+{
+    u8 stage = GetRandomizerRivalStage(species);
+    if (stage == 0xFF)
+        return species;
+    return sRandomizerRivalPool[gSaveBlock2Ptr->pokedex.randomizerRivalLineIndex][stage];
+}
+
 u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer *trainer, bool32 halfTeam, u32 battleTypeFlags)
 {
     u32 personalityValue;
@@ -1894,6 +1931,7 @@ u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer 
             const struct TrainerMon *partyData = trainer->party;
             struct OriginalTrainerId otId = OTID_STRUCT_RANDOM_NO_SHINY;
             u32 abilityNum = 0;
+            enum Species monSpecies = RandomizeRivalTrainerMonSpecies(partyData[monIndex].species);
 
             if (trainer->battleType != TRAINER_BATTLE_TYPE_SINGLES)
                 personalityValue = 0x80;
@@ -1904,18 +1942,18 @@ u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer 
 
             personalityValue += personalityHash << 8;
             if (partyData[monIndex].gender == TRAINER_MON_MALE)
-                personalityValue = (personalityValue & 0xFFFFFF00) | GeneratePersonalityForGender(MON_MALE, partyData[monIndex].species);
+                personalityValue = (personalityValue & 0xFFFFFF00) | GeneratePersonalityForGender(MON_MALE, monSpecies);
             else if (partyData[monIndex].gender == TRAINER_MON_FEMALE)
-                personalityValue = (personalityValue & 0xFFFFFF00) | GeneratePersonalityForGender(MON_FEMALE, partyData[monIndex].species);
+                personalityValue = (personalityValue & 0xFFFFFF00) | GeneratePersonalityForGender(MON_FEMALE, monSpecies);
             else if (partyData[monIndex].gender == TRAINER_MON_RANDOM_GENDER)
-                personalityValue = (personalityValue & 0xFFFFFF00) | GeneratePersonalityForGender(Random() & 1 ? MON_MALE : MON_FEMALE, partyData[monIndex].species);
+                personalityValue = (personalityValue & 0xFFFFFF00) | GeneratePersonalityForGender(Random() & 1 ? MON_MALE : MON_FEMALE, monSpecies);
             ModifyPersonalityForNature(&personalityValue, partyData[monIndex].nature);
             if (partyData[monIndex].isShiny)
             {
                 otId.method = OT_ID_PRESET;
                 otId.value = HIHALF(personalityValue) ^ LOHALF(personalityValue);
             }
-            CreateMon(&party[i], partyData[monIndex].species, partyData[monIndex].lvl, personalityValue, otId);
+            CreateMon(&party[i], monSpecies, partyData[monIndex].lvl, personalityValue, otId);
             SetMonData(&party[i], MON_DATA_HELD_ITEM, &partyData[monIndex].heldItem);
 
             CustomTrainerPartyAssignMoves(&party[i], &partyData[monIndex]);

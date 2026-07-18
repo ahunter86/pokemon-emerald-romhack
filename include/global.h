@@ -285,7 +285,10 @@ struct Pokedex
     /*0x08*/ u32 spindaPersonality; // set when you first see Spinda
     /*0x0C*/ u32 unknown3;
 #if FREE_EXTRA_SEEN_FLAGS_SAVEBLOCK2 == FALSE
-    /*0x10*/ u8 filler[0x68]; // Previously Dex Flags, feel free to remove.
+    /*0x10*/ u32 randomizerSeed; // Used to deterministically randomize wild encounters per save file.
+    /*0x14*/ u16 randomizerRivalLineIndex; // Index into sRandomizerRivalPool -- rival's assigned species line this save.
+    /*0x16*/ u8 menuRepelEnabled; // Persistent "Repel" Start Menu toggle -- see ToggleMenuRepel in wild_encounter.c.
+    /*0x17*/ u8 filler[0x61]; // Previously Dex Flags, feel free to remove.
 #endif //FREE_EXTRA_SEEN_FLAGS_SAVEBLOCK2
 };
 
@@ -604,7 +607,8 @@ struct SaveBlock2
              //u16 padding1:4;
              //u16 padding2;
     /*0x18*/ struct Pokedex pokedex;
-    /*0x90*/ u8 filler_90[0x8];
+    /*0x90*/ u16 randomizerStarterSpecies[3];
+    /*0x96*/ u8 filler_96[0x2];
     /*0x98*/ struct Time localTimeOffset;
     /*0xA0*/ struct Time lastBerryTreeUpdate;
     /*0xA8*/ u32 gcnLinkFlags; // Read by Pokémon Colosseum/XD

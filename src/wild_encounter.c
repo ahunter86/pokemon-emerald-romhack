@@ -21,6 +21,7 @@
 #include "script.h"
 #include "tv.h"
 #include "wild_encounter.h"
+#include "data/randomizer/wild_pool.h"
 #include "battle_debug.h"
 #include "battle_pike.h"
 #include "battle_pyramid.h"
@@ -463,8 +464,37 @@ static u8 PickWildMonNature(enum Species species)
     return GetSynchronizedNature(WILDMON_ORIGIN, species);
 }
 
+// Deterministic integer hash (MurmurHash3 finalizer). Pure function: same
+// inputs always give the same output, unlike RandomUniform which advances
+// global RNG state on every call -- we need repeatable results so the same
+// species always substitutes to the same replacement within one save.
+static u32 RandomizerHash(u32 x)
+{
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
+}
+
+// Substitutes a wild encounter species based on this save's randomizer
+// seed. Consistent within a save (every Wurmple becomes the same
+// replacement all game), varies between saves (different seed).
+static enum Species RandomizeWildSpecies(enum Species species)
+{
+    u32 hash;
+
+    if (species == SPECIES_NONE)
+        return species;
+
+    hash = RandomizerHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)species * 0x9E3779B1u));
+    return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
+}
+
 void CreateWildMon(enum Species species, u8 level)
 {
+    species = RandomizeWildSpecies(species);
     ZeroEnemyPartyMons();
     u32 personality = GetMonPersonality(species, GetSynchronizedGender(WILDMON_ORIGIN, species), PickWildMonNature(species), RANDOM_UNOWN_LETTER);
     CreateMonWithIVs(&gParties[B_TRAINER_OPPONENT_A][0], species, level, personality, OTID_STRUCT_PLAYER_ID, USE_RANDOM_IVS);
@@ -1009,6 +1039,26 @@ u16 GetLocalWaterMon(void)
     return SPECIES_NONE;
 }
 
+#define MENU_REPEL_REFILL_STEPS 250
+
+// Toggled from the Start Menu "REPEL" entry. Unlike a real Repel item,
+// this never wears off -- UpdateRepelCounter (below) keeps the step
+// counter topped up indefinitely while this flag is set, instead of
+// letting it expire and firing the "wore off" message.
+void ToggleMenuRepel(void)
+{
+    if (gSaveBlock2Ptr->pokedex.menuRepelEnabled)
+    {
+        gSaveBlock2Ptr->pokedex.menuRepelEnabled = FALSE;
+        VarSet(VAR_REPEL_STEP_COUNT, 0);
+    }
+    else
+    {
+        gSaveBlock2Ptr->pokedex.menuRepelEnabled = TRUE;
+        VarSet(VAR_REPEL_STEP_COUNT, MENU_REPEL_REFILL_STEPS);
+    }
+}
+
 bool8 UpdateRepelCounter(void)
 {
     u16 repelLureVar = VarGet(VAR_REPEL_STEP_COUNT);
@@ -1019,6 +1069,14 @@ bool8 UpdateRepelCounter(void)
         return FALSE;
     if (InUnionRoom() == TRUE)
         return FALSE;
+
+    // Menu Repel: keep the counter topped up indefinitely instead of
+    // letting it run out and fire the "wore off" message.
+    if (gSaveBlock2Ptr->pokedex.menuRepelEnabled && !isLure && steps <= 1)
+    {
+        VarSet(VAR_REPEL_STEP_COUNT, MENU_REPEL_REFILL_STEPS);
+        return FALSE;
+    }
 
     if (steps != 0)
     {
