@@ -25,9 +25,9 @@ Load the patched ROM in your emulator of choice (e.g. [mGBA](https://mgba.io/)).
 
 ## Building from source (developers)
 
-If you want to modify the hack yourself rather than just play it, see [`INSTALL.md`](INSTALL.md) for build toolchain setup, then check out the `my-hack` branch and run `make -j$(nproc)`. This produces `pokeemerald.gba` directly, which is already the finished hack -- no patching needed if you're building from source yourself.
+If you want to modify the hack yourself rather than just play it, see [`INSTALL.md`](INSTALL.md) for build toolchain setup, then check out the `my-hack` branch. Run `make -j$(nproc)` for a development build (keeps the debug menu accessible), or `make release -j$(nproc)` for the actual player-ready build (matches what's distributed as a patch, no debug menu). Release builds produce `pokeemerald-release.gba`, which is already the finished hack -- no patching needed if you're building from source yourself.
 
 If you want to produce a `.bps` patch to share (rather than the raw ROM), see [Flips](https://github.com/Alcaro/Flips) -- build it with `TARGET=cli make`, then:
 ```
-flips --create --bps-delta baserom.gba pokeemerald.gba my-hack.bps
+flips --create --bps-delta baserom.gba pokeemerald-release.gba my-hack.bps
 ```
