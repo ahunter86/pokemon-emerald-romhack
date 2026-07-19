@@ -350,6 +350,11 @@ static void BuildNormalStartMenu(void)
 
     AddStartMenuAction(MENU_ACTION_BAG);
 
+    if (IsFieldMoveUnlocked(FIELD_MOVE_FLY))
+        AddStartMenuAction(MENU_ACTION_FLY);
+
+    AddStartMenuAction(MENU_ACTION_REPEL);
+
     if (FlagGet(FLAG_SYS_POKENAV_GET) == TRUE)
         AddStartMenuAction(MENU_ACTION_POKENAV);
 
