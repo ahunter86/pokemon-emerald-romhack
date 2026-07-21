@@ -938,6 +938,7 @@ const u8 gText_MenuPokemon[] = _("POKéMON");
 const u8 gText_MenuBag[] = _("BAG");
 const u8 gText_MenuFly[] = _("FLY");
 const u8 gText_MenuRepel[] = _("REPEL");
+const u8 gText_MenuShortcuts[] = _("TOOLS");
 const u8 gText_MenuPokenav[] = _("POKéNAV");
 const u8 gText_MenuPlayer[] = _("{PLAYER}");
 const u8 gText_MenuSave[] = _("SAVE");

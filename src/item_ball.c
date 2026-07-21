@@ -5,6 +5,7 @@
 #include "constants/event_objects.h"
 #include "constants/items.h"
 #include "data/randomizer/item_pool.h"
+#include "data/randomizer/tm_pool.h"
 
 static u32 GetItemBallAmountFromTemplate(u32);
 static u32 GetItemBallIdFromTemplate(u32);
@@ -23,20 +24,38 @@ static u32 RandomizerHash(u32 x)
     return x;
 }
 
-// Substitutes an item-ball item based on this save's randomizer seed.
-// Only touches items already in a "safe" pocket (Items/Poké Balls/TM-HM).
-// Key items and berries pass through unchanged, and are never selected as
-// a replacement either, since sRandomizerItemPool never contains them.
-static enum Item RandomizeItemBallItem(enum Item originalItem)
+// Substitutes an item-ball/hidden-item item based on this save's
+// randomizer seed. Only touches items already in a "safe" pocket
+// (Items/TM-HM). Key items, berries, and Poké Balls pass through
+// unchanged, and are never selected as a replacement either, since
+// sRandomizerItemPool never contains them.
+enum Item RandomizeFieldItem(enum Item originalItem)
 {
     u32 hash;
     enum Pocket pocket = GetItemPocket(originalItem);
 
-    if (pocket != POCKET_ITEMS && pocket != POCKET_POKE_BALLS && pocket != POCKET_TM_HM)
+    if (pocket != POCKET_ITEMS && pocket != POCKET_TM_HM)
         return originalItem;
 
     hash = RandomizerHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)originalItem * 0xB5297A4Du) ^ 0x49E1F4D2u);
     return sRandomizerItemPool[hash % RANDOMIZER_ITEM_POOL_COUNT];
+}
+
+// Substitutes a TM/HM given via a script (giveitem/finditem -- gym
+// leader rewards, Trick House puzzles, any other NPC-given TM/HM) based
+// on this save's randomizer seed. Only touches TM/HM pocket items, so a
+// TM slot always becomes another TM/HM rather than an arbitrary item.
+// Everything else (regular NPC-given items, key items) passes through
+// unchanged.
+enum Item RandomizeGivenTM(enum Item originalItem)
+{
+    u32 hash;
+
+    if (GetItemPocket(originalItem) != POCKET_TM_HM)
+        return originalItem;
+
+    hash = RandomizerHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)originalItem * 0x2545F491u) ^ 0x27D4EB2Fu);
+    return sRandomizerTMPool[hash % RANDOMIZER_TM_POOL_COUNT];
 }
 
 static u32 GetItemBallAmountFromTemplate(u32 itemBallId)
@@ -56,7 +75,7 @@ static u32 GetItemBallIdFromTemplate(u32 itemBallId)
     if (itemId >= ITEMS_COUNT)
         return ITEM_NONE + 1;
 
-    return RandomizeItemBallItem(itemId);
+    return RandomizeFieldItem(itemId);
 }
 
 void GetItemBallIdAndAmountFromTemplate(void)

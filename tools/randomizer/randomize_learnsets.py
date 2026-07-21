@@ -43,6 +43,19 @@ EFFECT_PATTERN = re.compile(r'\.effect\s*=\s*(EFFECT_[A-Z0-9_]+)')
 # the whole point of the guarantee.
 NEVER_FAINTS_EFFECT = "EFFECT_FALSE_SWIPE"
 
+# Pokémon: Let's Go, Pikachu!/Eevee! and Partner Power (Isle of Armor)
+# signature moves -- don't make sense outside those specific event/partner
+# mechanics.
+EXTRA_EXCLUDED_MOVES = {
+    "MOVE_PIKA_PAPOW", "MOVE_VEEVEE_VOLLEY",
+    # Pikachu Partner Power moves
+    "MOVE_ZIPPY_ZAP", "MOVE_FLOATY_FALL", "MOVE_SPLISHY_SPLASH",
+    # Eevee Partner Power moves
+    "MOVE_BOUNCY_BUBBLE", "MOVE_BUZZY_BUZZ", "MOVE_SIZZLY_SLIDE",
+    "MOVE_GLITZY_GLOW", "MOVE_BADDY_BAD", "MOVE_SAPPY_SEED",
+    "MOVE_FREEZY_FROST", "MOVE_SPARKLY_SWIRL",
+}
+
 LEARNSET_BLOCK = re.compile(
     r'(static const struct LevelUpMove \w+\[\] = \{)(.*?)(\};)', re.DOTALL
 )
@@ -81,7 +94,7 @@ def load_move_pools():
     all_moves = []
     for i, m in enumerate(matches):
         move_const = m.group(1)  # already the full "MOVE_X" constant
-        if move_const == "MOVE_NONE" or move_const in gimmick_moves:
+        if move_const == "MOVE_NONE" or move_const in gimmick_moves or move_const in EXTRA_EXCLUDED_MOVES:
             continue
         window_end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
         window = content[m.end():window_end]

@@ -151,6 +151,7 @@ extern const u8 gText_MenuPokemon[];
 extern const u8 gText_MenuBag[];
 extern const u8 gText_MenuFly[];
 extern const u8 gText_MenuRepel[];
+extern const u8 gText_MenuShortcuts[];
 extern const u8 gText_MenuPokenav[];
 extern const u8 gText_MenuPlayer[];
 extern const u8 gText_MenuSave[];

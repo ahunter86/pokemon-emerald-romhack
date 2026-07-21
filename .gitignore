@@ -72,3 +72,6 @@ __pycache__
 
 # Distribution patch (regenerate on demand, don't track in history)
 *.bps
+
+# Randomizer working backups (numbered variants too)
+*.bak*

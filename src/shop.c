@@ -13,6 +13,7 @@
 #include "graphics.h"
 #include "international_string_util.h"
 #include "item.h"
+#include "item_ball.h"
 #include "item_icon.h"
 #include "item_menu.h"
 #include "list_menu.h"
@@ -113,6 +114,11 @@ static EWRAM_DATA struct ShopData *sShopData = NULL;
 static EWRAM_DATA struct ListMenuItem *sListMenuItems = NULL;
 static EWRAM_DATA u8 (*sItemNames)[ITEM_NAME_LENGTH + 2] = {0};
 static EWRAM_DATA u8 sPurchaseHistoryId = 0;
+// Holds a randomized copy of whatever shop list is currently set, so a
+// randomized TM slot shows the same substituted item in both the buy
+// menu and on purchase. Sized generously above the largest vanilla mart
+// list. Regular (non-TM/HM) items pass through RandomizeGivenTM unchanged.
+static EWRAM_DATA u16 sRandomizedShopItems[32] = {0};
 EWRAM_DATA struct ItemSlot gMartPurchaseHistory[SMARTSHOPPER_NUM_ITEMS] = {0};
 
 static void Task_ShopMenu(u8 taskId);
@@ -393,6 +399,18 @@ static void SetShopItemsForSale(const u16 *items)
         sMartInfo.itemList = sShopItemsListDummy;
         return;
     }
+
+    // Build a randomized copy of the list (TM/HM slots substituted per
+    // this save's seed, everything else passed through unchanged) so
+    // what's shown for sale always matches what purchasing it gives you.
+    while (items[i] != 0 && i < ARRAY_COUNT(sRandomizedShopItems) - 1)
+    {
+        sRandomizedShopItems[i] = RandomizeGivenTM(items[i]);
+        i++;
+    }
+    sRandomizedShopItems[i] = ITEM_NONE;
+    sMartInfo.itemList = sRandomizedShopItems;
+    i = 0;
 
     // Read items until ITEM_NONE / DECOR_NONE is reached
     while (sMartInfo.itemList[i])

@@ -73,6 +73,7 @@ enum
     MENU_ACTION_DEXNAV,
     MENU_ACTION_FLY,
     MENU_ACTION_REPEL,
+    MENU_ACTION_SHORTCUTS,
 };
 
 // Save status
@@ -94,6 +95,7 @@ EWRAM_DATA static u8 sStartMenuCursorPos = 0;
 EWRAM_DATA static u8 sNumStartMenuActions = 0;
 EWRAM_DATA static u8 sCurrentStartMenuActions[12] = {0};
 EWRAM_DATA static s8 sInitStartMenuData[2] = {0};
+EWRAM_DATA static bool8 sInShortcutsSubmenu = FALSE;
 
 EWRAM_DATA static u8 (*sSaveDialogCallback)(void) = NULL;
 EWRAM_DATA static u8 sSaveDialogTimer = 0;
@@ -106,6 +108,8 @@ static bool8 StartMenuPokemonCallback(void);
 static bool8 StartMenuBagCallback(void);
 static bool8 StartMenuFlyCallback(void);
 static bool8 StartMenuRepelCallback(void);
+static bool8 StartMenuShortcutsCallback(void);
+static void RebuildStartMenuWindow(void);
 static bool8 StartMenuPokeNavCallback(void);
 static bool8 StartMenuPlayerNameCallback(void);
 static bool8 StartMenuSaveCallback(void);
@@ -202,6 +206,7 @@ static const struct MenuAction sStartMenuItems[] =
     [MENU_ACTION_BAG]             = {gText_MenuBag,     {.u8_void = StartMenuBagCallback}},
     [MENU_ACTION_FLY]             = {gText_MenuFly,     {.u8_void = StartMenuFlyCallback}},
     [MENU_ACTION_REPEL]           = {gText_MenuRepel,   {.u8_void = StartMenuRepelCallback}},
+    [MENU_ACTION_SHORTCUTS]       = {gText_MenuShortcuts, {.u8_void = StartMenuShortcutsCallback}},
     [MENU_ACTION_POKENAV]         = {gText_MenuPokenav, {.u8_void = StartMenuPokeNavCallback}},
     [MENU_ACTION_PLAYER]          = {gText_MenuPlayer,  {.u8_void = StartMenuPlayerNameCallback}},
     [MENU_ACTION_SAVE]            = {gText_MenuSave,    {.u8_void = StartMenuSaveCallback}},
@@ -350,10 +355,7 @@ static void BuildNormalStartMenu(void)
 
     AddStartMenuAction(MENU_ACTION_BAG);
 
-    if (IsFieldMoveUnlocked(FIELD_MOVE_FLY))
-        AddStartMenuAction(MENU_ACTION_FLY);
-
-    AddStartMenuAction(MENU_ACTION_REPEL);
+    AddStartMenuAction(MENU_ACTION_SHORTCUTS);
 
     if (FlagGet(FLAG_SYS_POKENAV_GET) == TRUE)
         AddStartMenuAction(MENU_ACTION_POKENAV);
@@ -372,9 +374,7 @@ static void BuildDebugStartMenu(void)
     if (FlagGet(FLAG_SYS_POKEMON_GET) == TRUE)
         AddStartMenuAction(MENU_ACTION_POKEMON);
     AddStartMenuAction(MENU_ACTION_BAG);
-    if (IsFieldMoveUnlocked(FIELD_MOVE_FLY))
-        AddStartMenuAction(MENU_ACTION_FLY);
-    AddStartMenuAction(MENU_ACTION_REPEL);
+    AddStartMenuAction(MENU_ACTION_SHORTCUTS);
     if (FlagGet(FLAG_SYS_POKENAV_GET) == TRUE)
         AddStartMenuAction(MENU_ACTION_POKENAV);
     AddStartMenuAction(MENU_ACTION_PLAYER);
@@ -545,6 +545,7 @@ static bool32 InitStartMenuStep(void)
         break;
     case 1:
         BuildStartMenuActions();
+        sInShortcutsSubmenu = FALSE;
         sInitStartMenuData[0]++;
         break;
     case 2:
@@ -680,7 +681,8 @@ static bool8 HandleStartMenuInput(void)
             && gMenuCallback != StartMenuDebugCallback
             && gMenuCallback != StartMenuSafariZoneRetireCallback
             && gMenuCallback != StartMenuBattlePyramidRetireCallback
-            && gMenuCallback != StartMenuRepelCallback)
+            && gMenuCallback != StartMenuRepelCallback
+            && gMenuCallback != StartMenuShortcutsCallback)
         {
            FadeScreen(FADE_TO_BLACK, 0);
         }
@@ -690,6 +692,14 @@ static bool8 HandleStartMenuInput(void)
 
     if (JOY_NEW(START_BUTTON | B_BUTTON))
     {
+        if (sInShortcutsSubmenu)
+        {
+            sInShortcutsSubmenu = FALSE;
+            BuildStartMenuActions();
+            RebuildStartMenuWindow();
+            return FALSE;
+        }
+
         RemoveExtraStartMenuWindows();
         HideStartMenu();
         return TRUE;
@@ -751,6 +761,44 @@ static bool8 StartMenuRepelCallback(void)
     HideStartMenu(); // Also plays SE_SELECT internally
 
     return TRUE;
+}
+
+// Redraws the Start Menu window from whatever's currently in
+// sCurrentStartMenuActions/sNumStartMenuActions -- used to swap between
+// the main list and the Shortcuts sub-list without needing a whole
+// separate menu system, since the window naturally sizes itself to
+// however many items are currently set.
+static void RebuildStartMenuWindow(void)
+{
+    s8 printIndex = 0;
+
+    ClearStdWindowAndFrame(GetStartMenuWindowId(), TRUE);
+    RemoveStartMenuWindow();
+    LoadMessageBoxAndBorderGfx();
+    DrawStdWindowFrame(AddStartMenuWindow(sNumStartMenuActions), FALSE);
+    PrintStartMenuActions(&printIndex, sNumStartMenuActions);
+    sStartMenuCursorPos = InitMenuNormal(GetStartMenuWindowId(), FONT_NORMAL, 0, 9, 16, sNumStartMenuActions, 0);
+    CopyWindowToVram(GetStartMenuWindowId(), COPYWIN_MAP);
+}
+
+static bool8 StartMenuShortcutsCallback(void)
+{
+    sNumStartMenuActions = 0;
+
+    if (IsFieldMoveUnlocked(FIELD_MOVE_FLY))
+        AddStartMenuAction(MENU_ACTION_FLY);
+
+    AddStartMenuAction(MENU_ACTION_REPEL);
+
+    sInShortcutsSubmenu = TRUE;
+    RebuildStartMenuWindow();
+
+    // This callback only needs to run once (to rebuild the list/window) --
+    // hand control back to HandleStartMenuInput so subsequent frames read
+    // button presses again, instead of rebuilding the same window forever.
+    gMenuCallback = HandleStartMenuInput;
+
+    return FALSE;
 }
 
 static bool8 StartMenuFlyCallback(void)

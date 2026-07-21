@@ -33,13 +33,17 @@ ABILITY_LINE_PATTERN = re.compile(
 )
 
 
+# Immunity to all non-super-effective damage is too strong to hand out
+# randomly, especially to defensively-strong walls or AI trainers.
+ABILITY_EXCLUDED = {"ABILITY_WONDER_GUARD"}
+
 def load_ability_pool():
     pattern = re.compile(r'^\s*(ABILITY_[A-Z0-9_]+)\s*=\s*\d+,?')
     pool = []
     with open(ABILITIES_H_PATH) as f:
         for line in f:
             m = pattern.match(line)
-            if m and m.group(1) != "ABILITY_NONE":
+            if m and m.group(1) != "ABILITY_NONE" and m.group(1) not in ABILITY_EXCLUDED:
                 pool.append(m.group(1))
     return pool
 

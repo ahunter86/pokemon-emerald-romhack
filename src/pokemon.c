@@ -1,4 +1,7 @@
 #include "global.h"
+#include "data/randomizer/ability_pool.h"
+#include "data/randomizer/species_family_table.h"
+#include "data/randomizer/move_pool.h"
 #include "malloc.h"
 #include "apprentice.h"
 #include "battle.h"
@@ -3258,9 +3261,48 @@ enum Type GetSpeciesType(enum Species species, u8 slot)
     return gSpeciesInfo[SanitizeSpeciesId(species)].types[slot];
 }
 
+// Deterministic integer hash (MurmurHash3 finalizer). Mirrors the one in
+// wild_encounter.c/item_ball.c -- pure function, same inputs always give
+// the same output, so a given species+slot always substitutes to the
+// same ability within one save, but differs between saves.
+static u32 RandomizerAbilityHash(u32 x)
+{
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
+}
+
+// Substitutes a species' ability based on this save's randomizer seed.
+// Preserves slot shape: an originally-empty slot (ABILITY_NONE) always
+// stays empty; a filled slot always gets a real (possibly different)
+// ability. Each slot is hashed independently, so a species with 2
+// regular + 1 hidden ability gets 3 independently randomized abilities.
+static enum Ability RandomizeSpeciesAbility(enum Species species, u8 slot, enum Ability original)
+{
+    u32 hash;
+    enum Species familyRoot;
+
+    if (original == ABILITY_NONE)
+        return ABILITY_NONE;
+
+    // Hash on the evolution family's base species (not the specific
+    // stage), so an entire line shares the same randomized abilities
+    // and evolving never changes what ability a Pokémon has.
+    familyRoot = sSpeciesFamilyRoot[SanitizeSpeciesId(species)];
+    if (familyRoot == SPECIES_NONE)
+        familyRoot = species;
+
+    hash = RandomizerAbilityHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)familyRoot * 0x85EBCA6Bu) ^ ((u32)slot * 0xC2B2AE35u) ^ 0x9E3779B9u);
+    return sRandomizerAbilityPool[hash % RANDOMIZER_ABILITY_POOL_COUNT];
+}
+
 enum Ability GetSpeciesAbility(enum Species species, u8 slot)
 {
-    return gSpeciesInfo[SanitizeSpeciesId(species)].abilities[slot];
+    enum Ability original = gSpeciesInfo[SanitizeSpeciesId(species)].abilities[slot];
+    return RandomizeSpeciesAbility(species, slot, original);
 }
 
 u32 GetSpeciesBaseHP(enum Species species)
@@ -3323,12 +3365,118 @@ u32 GetSpeciesBaseStatTotal(enum Species species)
     return total;
 }
 
+#define RANDOMIZER_LEARNSET_CHECK_LEVEL 10
+#define RANDOMIZER_LEARNSET_BUFFER_SIZE 32
+#define RANDOMIZER_LEARNSET_BUFFER_COUNT 4
+
+// A rotating pool of buffers (not just one) since GetSpeciesLevelUpLearnset
+// is called from several places -- a single shared buffer would risk one
+// call's data getting silently overwritten if any caller ever needs two
+// different species' learnsets at once (e.g. comparing evolution stages).
+static struct LevelUpMove sRandomizedLearnsetBuffers[RANDOMIZER_LEARNSET_BUFFER_COUNT][RANDOMIZER_LEARNSET_BUFFER_SIZE];
+static u8 sRandomizedLearnsetBufferIndex = 0;
+
 const struct LevelUpMove *GetSpeciesLevelUpLearnset(enum Species species)
 {
-    const struct LevelUpMove *learnset = gSpeciesInfo[SanitizeSpeciesId(species)].levelUpLearnset;
-    if (learnset == NULL)
+    const struct LevelUpMove *original = gSpeciesInfo[SanitizeSpeciesId(species)].levelUpLearnset;
+    struct LevelUpMove *buffer;
+    u32 count = 0;
+    u32 i;
+    u32 windowIndices[4];
+    u32 windowMoves[4];
+    u32 windowCount = 0;
+    bool32 hasDamaging;
+
+    if (original == NULL)
         return gSpeciesInfo[SPECIES_NONE].levelUpLearnset;
-    return learnset;
+
+    buffer = sRandomizedLearnsetBuffers[sRandomizedLearnsetBufferIndex];
+    sRandomizedLearnsetBufferIndex = (sRandomizedLearnsetBufferIndex + 1) % RANDOMIZER_LEARNSET_BUFFER_COUNT;
+
+    // Build a randomized copy: level preserved, move substituted per this
+    // save's seed. Each (species, index) is hashed independently, matching
+    // the old build-time randomizer's behavior (no cross-entry uniqueness
+    // guarantee within one species' learnset).
+    while (original[count].move != LEVEL_UP_MOVE_END && count < RANDOMIZER_LEARNSET_BUFFER_SIZE - 1)
+    {
+        u32 hash = RandomizerAbilityHash(gSaveBlock2Ptr->pokedex.randomizerSeed
+            ^ ((u32)species * 0x27D4EB2Fu)
+            ^ (count * 0x165667B1u)
+            ^ 0x2545F491u);
+        buffer[count].level = original[count].level;
+        buffer[count].move = sRandomizerMovePool[hash % RANDOMIZER_MOVE_POOL_COUNT];
+        count++;
+    }
+    buffer[count].level = 0;
+    buffer[count].move = LEVEL_UP_MOVE_END;
+
+    // Simulate GiveBoxMonInitialMoveset's sliding-window algorithm at a
+    // representative early level, to guarantee a real damaging move is
+    // reachable -- mirrors the old build-time randomizer's safety net.
+    for (i = 0; i < count; i++)
+    {
+        u32 lvl = buffer[i].level;
+        enum Move mv;
+        bool32 alreadyKnown;
+        u32 j;
+
+        if (lvl > RANDOMIZER_LEARNSET_CHECK_LEVEL)
+            break;
+        if (lvl == 0)
+            continue;
+
+        mv = buffer[i].move;
+        alreadyKnown = FALSE;
+        for (j = 0; j < windowCount; j++)
+        {
+            if (windowMoves[j] == mv)
+            {
+                alreadyKnown = TRUE;
+                break;
+            }
+        }
+        if (alreadyKnown)
+            continue;
+
+        if (windowCount < 4)
+        {
+            windowIndices[windowCount] = i;
+            windowMoves[windowCount] = mv;
+            windowCount++;
+        }
+        else
+        {
+            for (j = 0; j < 3; j++)
+            {
+                windowIndices[j] = windowIndices[j + 1];
+                windowMoves[j] = windowMoves[j + 1];
+            }
+            windowIndices[3] = i;
+            windowMoves[3] = mv;
+        }
+    }
+
+    hasDamaging = FALSE;
+    for (i = 0; i < windowCount; i++)
+    {
+        if (sMoveIsDamaging[windowMoves[i]])
+        {
+            hasDamaging = TRUE;
+            break;
+        }
+    }
+
+    if (windowCount > 0 && !hasDamaging)
+    {
+        u32 fixIdx = windowIndices[0];
+        u32 hash = RandomizerAbilityHash(gSaveBlock2Ptr->pokedex.randomizerSeed
+            ^ ((u32)species * 0x27D4EB2Fu)
+            ^ (fixIdx * 0x165667B1u)
+            ^ 0xDEADBEEFu);
+        buffer[fixIdx].move = sRandomizerDamagingMovePool[hash % RANDOMIZER_DAMAGING_MOVE_POOL_COUNT];
+    }
+
+    return buffer;
 }
 
 const u16 *GetSpeciesTeachableLearnset(enum Species species)

@@ -16,6 +16,7 @@
 #include "battle_tower.h"
 #include "battle_z_move.h"
 #include "data/randomizer/rival_pool.h"
+#include "data/randomizer/wild_pool.h"
 #include "battle_gimmick.h"
 #include "berry.h"
 #include "bg.h"
@@ -1890,12 +1891,69 @@ static u8 GetRandomizerRivalStage(enum Species species)
 // stage the vanilla data specifies) with this save's randomly rolled
 // rival line. Leaves any other trainer's mon (species not part of the
 // vanilla starter line) untouched.
-static enum Species RandomizeRivalTrainerMonSpecies(enum Species species)
+// Every rival battle instance across the whole game (both genders, every
+// location, every starter variant). Used to scope "randomize this
+// trainer's entire team" to specifically the rival, not every trainer.
+static const u16 sRivalTrainerIds[] =
+{
+    TRAINER_BRENDAN_ROUTE_103_MUDKIP, TRAINER_BRENDAN_ROUTE_110_MUDKIP, TRAINER_BRENDAN_ROUTE_119_MUDKIP,
+    TRAINER_BRENDAN_ROUTE_103_TREECKO, TRAINER_BRENDAN_ROUTE_110_TREECKO, TRAINER_BRENDAN_ROUTE_119_TREECKO,
+    TRAINER_BRENDAN_ROUTE_103_TORCHIC, TRAINER_BRENDAN_ROUTE_110_TORCHIC, TRAINER_BRENDAN_ROUTE_119_TORCHIC,
+    TRAINER_MAY_ROUTE_103_MUDKIP, TRAINER_MAY_ROUTE_110_MUDKIP, TRAINER_MAY_ROUTE_119_MUDKIP,
+    TRAINER_MAY_ROUTE_103_TREECKO, TRAINER_MAY_ROUTE_110_TREECKO, TRAINER_MAY_ROUTE_119_TREECKO,
+    TRAINER_MAY_ROUTE_103_TORCHIC, TRAINER_MAY_ROUTE_110_TORCHIC, TRAINER_MAY_ROUTE_119_TORCHIC,
+    TRAINER_BRENDAN_RUSTBORO_TREECKO, TRAINER_BRENDAN_RUSTBORO_MUDKIP, TRAINER_BRENDAN_RUSTBORO_TORCHIC,
+    TRAINER_MAY_RUSTBORO_MUDKIP, TRAINER_MAY_RUSTBORO_TREECKO, TRAINER_MAY_RUSTBORO_TORCHIC,
+    TRAINER_BRENDAN_LILYCOVE_MUDKIP, TRAINER_BRENDAN_LILYCOVE_TREECKO, TRAINER_BRENDAN_LILYCOVE_TORCHIC,
+    TRAINER_MAY_LILYCOVE_MUDKIP, TRAINER_MAY_LILYCOVE_TREECKO, TRAINER_MAY_LILYCOVE_TORCHIC,
+};
+
+static bool8 IsRivalBattleTrainer(const struct Trainer *trainer)
+{
+    u32 i;
+    for (i = 0; i < ARRAY_COUNT(sRivalTrainerIds); i++)
+    {
+        if (trainer == GetTrainerStructFromId(sRivalTrainerIds[i]))
+            return TRUE;
+    }
+    return FALSE;
+}
+
+// Deterministic integer hash (MurmurHash3 finalizer), mirrors the one
+// used elsewhere in the randomizer.
+static u32 RivalOtherMonHash(u32 x)
+{
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
+}
+
+// Substitutes the rival's non-starter-line Pokémon (e.g. Torkoal) based on
+// this save's randomizer seed. Consistent within a save -- the same
+// original species always becomes the same substitute, so if she keeps
+// this Pokémon across multiple fights, so does its randomized replacement;
+// if she drops it in a later fight, so does the substitute, since we're
+// only ever substituting species, never touching team composition.
+static enum Species RandomizeRivalOtherMonSpecies(enum Species species)
+{
+    u32 hash;
+    if (species == SPECIES_NONE)
+        return species;
+    hash = RivalOtherMonHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)species * 0x27220A95u) ^ 0x1B873593u);
+    return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
+}
+
+static enum Species RandomizeRivalTrainerMonSpecies(enum Species species, bool8 isRivalTrainer)
 {
     u8 stage = GetRandomizerRivalStage(species);
-    if (stage == 0xFF)
+    if (stage != 0xFF)
+        return sRandomizerRivalPool[gSaveBlock2Ptr->pokedex.randomizerRivalLineIndex][stage];
+    if (!isRivalTrainer)
         return species;
-    return sRandomizerRivalPool[gSaveBlock2Ptr->pokedex.randomizerRivalLineIndex][stage];
+    return RandomizeRivalOtherMonSpecies(species);
 }
 
 u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer *trainer, bool32 halfTeam, u32 battleTypeFlags)
@@ -1921,6 +1979,7 @@ u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer 
         }
 
         u32 monIndices[monsCount];
+        bool8 isRivalTrainer = IsRivalBattleTrainer(trainer);
         DoTrainerPartyPool(trainer, monIndices, monsCount, battleTypeFlags);
 
         for (s32 i = 0; i < monsCount; i++)
@@ -1931,7 +1990,7 @@ u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer 
             const struct TrainerMon *partyData = trainer->party;
             struct OriginalTrainerId otId = OTID_STRUCT_RANDOM_NO_SHINY;
             u32 abilityNum = 0;
-            enum Species monSpecies = RandomizeRivalTrainerMonSpecies(partyData[monIndex].species);
+            enum Species monSpecies = RandomizeRivalTrainerMonSpecies(partyData[monIndex].species, isRivalTrainer);
 
             if (trainer->battleType != TRAINER_BATTLE_TYPE_SINGLES)
                 personalityValue = 0x80;
