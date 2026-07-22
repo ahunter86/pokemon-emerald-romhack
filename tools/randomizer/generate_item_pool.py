@@ -19,7 +19,12 @@ POCKET_PATTERN = re.compile(r'\.pocket\s*=\s*(POCKET_[A-Z0-9_]+)')
 NAME_PATTERN = re.compile(r'\.name\s*=\s*ITEM_NAME\("([^"]*)"\)')
 DESC_PATTERN = re.compile(r'\.description\s*=\s*sQuestionMarksDesc')
 
-SAFE_POCKETS = {"POCKET_ITEMS", "POCKET_TM_HM"}  # Poké Balls intentionally excluded
+SAFE_POCKETS = {"POCKET_ITEMS", "POCKET_TM_HM"}  # Poké Balls, berries intentionally excluded
+
+# Specific items included despite their pocket not being generally safe --
+# Sitrus Berry is a genuinely useful, non-gimmicky item worth having in
+# the pool even though berries are otherwise excluded entirely.
+EXTRA_INCLUDED_ITEMS = {"ITEM_SITRUS_BERRY"}
 
 
 def main():
@@ -41,7 +46,7 @@ def main():
 
         pocket_match = POCKET_PATTERN.search(window)
         pocket = pocket_match.group(1) if pocket_match else None
-        if pocket not in SAFE_POCKETS:
+        if pocket not in SAFE_POCKETS and name not in EXTRA_INCLUDED_ITEMS:
             continue
 
         name_match = NAME_PATTERN.search(window)

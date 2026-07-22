@@ -34,7 +34,11 @@ enum Item RandomizeFieldItem(enum Item originalItem)
     u32 hash;
     enum Pocket pocket = GetItemPocket(originalItem);
 
-    if (pocket != POCKET_ITEMS && pocket != POCKET_TM_HM)
+    // Poké Ball slots ARE randomized (into a regular item) -- Poké Balls
+    // themselves are just never a possible result, since sRandomizerItemPool
+    // never contains one. Key items and (non-Sitrus) berries pass through
+    // unchanged, since neither pocket is ever safe to touch.
+    if (pocket != POCKET_ITEMS && pocket != POCKET_POKE_BALLS && pocket != POCKET_TM_HM)
         return originalItem;
 
     hash = RandomizerHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)originalItem * 0xB5297A4Du) ^ 0x49E1F4D2u);
