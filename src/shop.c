@@ -405,7 +405,7 @@ static void SetShopItemsForSale(const u16 *items)
     // what's shown for sale always matches what purchasing it gives you.
     while (items[i] != 0 && i < ARRAY_COUNT(sRandomizedShopItems) - 1)
     {
-        sRandomizedShopItems[i] = RandomizeGivenTM(items[i]);
+        sRandomizedShopItems[i] = RandomizeGivenTM(items[i], ((u32)gMapHeader.mapLayoutId << 16) ^ i);
         i++;
     }
     sRandomizedShopItems[i] = ITEM_NONE;

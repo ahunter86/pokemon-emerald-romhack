@@ -4,7 +4,7 @@
 #include "constants/items.h"
 
 void GetItemBallIdAndAmountFromTemplate(void);
-enum Item RandomizeFieldItem(enum Item originalItem);
-enum Item RandomizeGivenTM(enum Item originalItem);
+enum Item RandomizeFieldItem(enum Item originalItem, u32 uniqueKey);
+enum Item RandomizeGivenTM(enum Item originalItem, u32 uniqueKey);
 
 #endif //GUARD_ITEM_BALL_H

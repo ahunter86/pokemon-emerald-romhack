@@ -1191,9 +1191,44 @@ static void DestroyCategoryIcon(void)
 
 u32 GetAdjustedIvData(struct Pokemon *mon, u32 stat)
 {
-    if (P_SUMMARY_SCREEN_IV_HYPERTRAIN && GetMonData(mon, MON_DATA_HYPER_TRAINED_HP + stat))
+    // NOTE: MON_DATA_*_IV and MON_DATA_HYPER_TRAINED_* are declared in the
+    // order HP/ATK/DEF/SPEED/SPATK/SPDEF, NOT matching the STAT_ enum order
+    // (HP/ATK/DEF/SPATK/SPDEF/SPEED) -- so "+ stat" offset arithmetic here
+    // silently reads the wrong field for SPATK/SPDEF/SPEED. Use an explicit
+    // mapping instead of relying on the two enums staying aligned.
+    u32 ivField, hyperTrainField;
+    switch (stat)
+    {
+    case STAT_ATK:
+        ivField = MON_DATA_ATK_IV;
+        hyperTrainField = MON_DATA_HYPER_TRAINED_ATK;
+        break;
+    case STAT_DEF:
+        ivField = MON_DATA_DEF_IV;
+        hyperTrainField = MON_DATA_HYPER_TRAINED_DEF;
+        break;
+    case STAT_SPATK:
+        ivField = MON_DATA_SPATK_IV;
+        hyperTrainField = MON_DATA_HYPER_TRAINED_SPATK;
+        break;
+    case STAT_SPDEF:
+        ivField = MON_DATA_SPDEF_IV;
+        hyperTrainField = MON_DATA_HYPER_TRAINED_SPDEF;
+        break;
+    case STAT_SPEED:
+        ivField = MON_DATA_SPEED_IV;
+        hyperTrainField = MON_DATA_HYPER_TRAINED_SPEED;
+        break;
+    case STAT_HP:
+    default:
+        ivField = MON_DATA_HP_IV;
+        hyperTrainField = MON_DATA_HYPER_TRAINED_HP;
+        break;
+    }
+
+    if (P_SUMMARY_SCREEN_IV_HYPERTRAIN && GetMonData(mon, hyperTrainField))
         return MAX_PER_STAT_IVS;
-    return GetMonData(mon, MON_DATA_HP_IV + stat);
+    return GetMonData(mon, ivField);
 }
 
 void ShowPokemonSummaryScreen(u8 mode, void *mons, u8 monIndex, u8 maxMonIndex, void (*callback)(void))
@@ -1758,6 +1793,21 @@ static void Task_HandleInput(u8 taskId)
 {
     if (MenuHelpers_ShouldWaitForLinkRecv() != TRUE && !gPaletteFade.active)
     {
+        // Hold R on the Skills page to peek at IVs; release to return
+        // to Stats. Checked fresh every frame (stateless) rather than
+        // relying on a persisted mode field staying in sync across
+        // multiple functions, which is what made the vanilla A-button
+        // Stats/IVs/EVs cycle toggle (P_SUMMARY_SCREEN_IV_EV_INFO)
+        // unreliable. Doesn't conflict with the R+START debug menu combo
+        // (that needs both held together, and is release-disabled anyway).
+        if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
+        {
+            if (JOY_HELD(R_BUTTON) && sMonSummaryScreen->skillsPageMode != SUMMARY_SKILLS_MODE_IVS)
+                ShowMonSkillsInfo(taskId, SUMMARY_SKILLS_MODE_IVS);
+            else if (!JOY_HELD(R_BUTTON) && sMonSummaryScreen->skillsPageMode != SUMMARY_SKILLS_MODE_STATS)
+                ShowMonSkillsInfo(taskId, SUMMARY_SKILLS_MODE_STATS);
+        }
+
         if (JOY_NEW(DPAD_UP))
         {
             ChangeSummaryPokemon(taskId, -1);
@@ -1873,6 +1923,11 @@ static void ShowMonSkillsInfo(u8 taskId, s16 mode)
 {
     struct PokeSummary *sum = &sMonSummaryScreen->summary;
     struct Pokemon *mon = &sMonSummaryScreen->currentMon;
+
+    // Explicitly keep the persistent mode field in sync with the mode
+    // this call is actually displaying, rather than relying on callers
+    // to have already set it correctly.
+    sMonSummaryScreen->skillsPageMode = mode;
 
     FillWindowPixelBuffer(sMonSummaryScreen->windowIds[PSS_DATA_WINDOW_SKILLS_STATS_LEFT], 0);
     FillWindowPixelBuffer(sMonSummaryScreen->windowIds[PSS_DATA_WINDOW_SKILLS_STATS_RIGHT], 0);
@@ -3752,6 +3807,7 @@ static void PrintSkillsPageText(void)
 {
     PrintHeldItemName();
     PrintRibbonCount();
+    sMonSummaryScreen->skillsPageMode = SUMMARY_SKILLS_MODE_STATS;
     if (ShouldShowIvEvPrompt())
         ShowUtilityPrompt(SUMMARY_SKILLS_MODE_STATS);
     BufferLeftColumnStats();
@@ -3774,7 +3830,10 @@ static void Task_PrintSkillsPage(u8 taskId)
         PrintRibbonCount();
         break;
     case 3:
+        sMonSummaryScreen->skillsPageMode = SUMMARY_SKILLS_MODE_STATS;
         ChangeStatLabel(SUMMARY_SKILLS_MODE_STATS);
+        if (ShouldShowIvEvPrompt())
+            ShowUtilityPrompt(SUMMARY_SKILLS_MODE_STATS);
         break;
     case 4:
         BufferLeftColumnStats();

@@ -75,3 +75,6 @@ __pycache__
 
 # Randomizer working backups (numbered variants too)
 *.bak*
+
+# Stray editor/backup files
+*.save
