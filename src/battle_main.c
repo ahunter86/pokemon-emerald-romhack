@@ -1887,41 +1887,9 @@ static u8 GetRandomizerRivalStage(enum Species species)
     }
 }
 
-// Substitutes the rival's starter-line species (at whichever evolution
-// stage the vanilla data specifies) with this save's randomly rolled
-// rival line. Leaves any other trainer's mon (species not part of the
-// vanilla starter line) untouched.
-// Every rival battle instance across the whole game (both genders, every
-// location, every starter variant). Used to scope "randomize this
-// trainer's entire team" to specifically the rival, not every trainer.
-static const u16 sRivalTrainerIds[] =
-{
-    TRAINER_BRENDAN_ROUTE_103_MUDKIP, TRAINER_BRENDAN_ROUTE_110_MUDKIP, TRAINER_BRENDAN_ROUTE_119_MUDKIP,
-    TRAINER_BRENDAN_ROUTE_103_TREECKO, TRAINER_BRENDAN_ROUTE_110_TREECKO, TRAINER_BRENDAN_ROUTE_119_TREECKO,
-    TRAINER_BRENDAN_ROUTE_103_TORCHIC, TRAINER_BRENDAN_ROUTE_110_TORCHIC, TRAINER_BRENDAN_ROUTE_119_TORCHIC,
-    TRAINER_MAY_ROUTE_103_MUDKIP, TRAINER_MAY_ROUTE_110_MUDKIP, TRAINER_MAY_ROUTE_119_MUDKIP,
-    TRAINER_MAY_ROUTE_103_TREECKO, TRAINER_MAY_ROUTE_110_TREECKO, TRAINER_MAY_ROUTE_119_TREECKO,
-    TRAINER_MAY_ROUTE_103_TORCHIC, TRAINER_MAY_ROUTE_110_TORCHIC, TRAINER_MAY_ROUTE_119_TORCHIC,
-    TRAINER_BRENDAN_RUSTBORO_TREECKO, TRAINER_BRENDAN_RUSTBORO_MUDKIP, TRAINER_BRENDAN_RUSTBORO_TORCHIC,
-    TRAINER_MAY_RUSTBORO_MUDKIP, TRAINER_MAY_RUSTBORO_TREECKO, TRAINER_MAY_RUSTBORO_TORCHIC,
-    TRAINER_BRENDAN_LILYCOVE_MUDKIP, TRAINER_BRENDAN_LILYCOVE_TREECKO, TRAINER_BRENDAN_LILYCOVE_TORCHIC,
-    TRAINER_MAY_LILYCOVE_MUDKIP, TRAINER_MAY_LILYCOVE_TREECKO, TRAINER_MAY_LILYCOVE_TORCHIC,
-};
-
-static bool8 IsRivalBattleTrainer(const struct Trainer *trainer)
-{
-    u32 i;
-    for (i = 0; i < ARRAY_COUNT(sRivalTrainerIds); i++)
-    {
-        if (trainer == GetTrainerStructFromId(sRivalTrainerIds[i]))
-            return TRUE;
-    }
-    return FALSE;
-}
-
 // Deterministic integer hash (MurmurHash3 finalizer), mirrors the one
 // used elsewhere in the randomizer.
-static u32 RivalOtherMonHash(u32 x)
+static u32 TrainerMonHash(u32 x)
 {
     x ^= x >> 16;
     x *= 0x7feb352dU;
@@ -1931,29 +1899,33 @@ static u32 RivalOtherMonHash(u32 x)
     return x;
 }
 
-// Substitutes the rival's non-starter-line Pokémon (e.g. Torkoal) based on
-// this save's randomizer seed. Consistent within a save -- the same
-// original species always becomes the same substitute, so if she keeps
-// this Pokémon across multiple fights, so does its randomized replacement;
-// if she drops it in a later fight, so does the substitute, since we're
-// only ever substituting species, never touching team composition.
-static enum Species RandomizeRivalOtherMonSpecies(enum Species species)
+// Substitutes a trainer's Pokémon (any trainer in the game, not just the
+// rival) based on this save's randomizer seed and a caller-supplied
+// uniqueKey identifying THIS SPECIFIC party slot (not the original
+// species) -- so e.g. a trainer with two Geodude in their party gets two
+// INDEPENDENTLY randomized substitutes, rather than both becoming the
+// same thing. Only ever substitutes species -- team size, levels,
+// moves, and everything else about the trainer's data is untouched.
+static enum Species RandomizeTrainerMonSpecies(enum Species species, u32 uniqueKey)
 {
     u32 hash;
     if (species == SPECIES_NONE)
         return species;
-    hash = RivalOtherMonHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)species * 0x27220A95u) ^ 0x1B873593u);
+    hash = TrainerMonHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ (uniqueKey * 0x27220A95u) ^ 0x1B873593u);
     return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
 }
 
-static enum Species RandomizeRivalTrainerMonSpecies(enum Species species, bool8 isRivalTrainer)
+// Substitutes any trainer's starter-line species (at whichever evolution
+// stage the vanilla data specifies) with this save's randomly rolled
+// rival line -- keeps the rival's own starter consistent with the
+// player's starter choice across her many battles. Every other Pokémon,
+// for every trainer, goes through the general substitution above.
+static enum Species RandomizeTrainerPartyMonSpecies(enum Species species, u32 uniqueKey)
 {
     u8 stage = GetRandomizerRivalStage(species);
     if (stage != 0xFF)
         return sRandomizerRivalPool[gSaveBlock2Ptr->pokedex.randomizerRivalLineIndex][stage];
-    if (!isRivalTrainer)
-        return species;
-    return RandomizeRivalOtherMonSpecies(species);
+    return RandomizeTrainerMonSpecies(species, uniqueKey);
 }
 
 u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer *trainer, bool32 halfTeam, u32 battleTypeFlags)
@@ -1979,7 +1951,6 @@ u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer 
         }
 
         u32 monIndices[monsCount];
-        bool8 isRivalTrainer = IsRivalBattleTrainer(trainer);
         DoTrainerPartyPool(trainer, monIndices, monsCount, battleTypeFlags);
 
         for (s32 i = 0; i < monsCount; i++)
@@ -1990,7 +1961,7 @@ u8 CreateNPCTrainerPartyFromTrainer(struct Pokemon *party, const struct Trainer 
             const struct TrainerMon *partyData = trainer->party;
             struct OriginalTrainerId otId = OTID_STRUCT_RANDOM_NO_SHINY;
             u32 abilityNum = 0;
-            enum Species monSpecies = RandomizeRivalTrainerMonSpecies(partyData[monIndex].species, isRivalTrainer);
+            enum Species monSpecies = RandomizeTrainerPartyMonSpecies(partyData[monIndex].species, ((u32)trainer) ^ ((u32)monIndex * 0x9E3779B1u));
 
             if (trainer->battleType != TRAINER_BATTLE_TYPE_SINGLES)
                 personalityValue = 0x80;

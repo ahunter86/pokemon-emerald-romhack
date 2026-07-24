@@ -18,6 +18,18 @@ OUTPUT_PATH = Path("src/data/randomizer/wild_pool.h")
 
 EXCLUDE_SUBSTRINGS = ["_MEGA", "_GMAX", "_PRIMAL", "_ETERNAMAX", "_TOTEM", "_ULTRA", "_COMPLETE"]
 
+# Paradox Pokemon (Gen 9) -- not flagged as legendary/mythical by PokeAPI,
+# so excluded by an explicit constant list instead.
+EXCLUDE_PARADOX = {
+    "SPECIES_GREAT_TUSK", "SPECIES_SCREAM_TAIL", "SPECIES_BRUTE_BONNET",
+    "SPECIES_FLUTTER_MANE", "SPECIES_SLITHER_WING", "SPECIES_SANDY_SHOCKS",
+    "SPECIES_IRON_TREADS", "SPECIES_IRON_BUNDLE", "SPECIES_IRON_HANDS",
+    "SPECIES_IRON_JUGULIS", "SPECIES_IRON_MOTH", "SPECIES_IRON_THORNS",
+    "SPECIES_ROARING_MOON", "SPECIES_IRON_VALIANT", "SPECIES_WALKING_WAKE",
+    "SPECIES_IRON_LEAVES", "SPECIES_GOUGING_FIRE", "SPECIES_RAGING_BOLT",
+    "SPECIES_IRON_BOULDER", "SPECIES_IRON_CROWN",
+}
+
 
 def main():
     if not SPECIES_POOL_PATH.exists():
@@ -32,6 +44,8 @@ def main():
         if any(sub in const for sub in EXCLUDE_SUBSTRINGS):
             continue
         if entry["legendary"] or entry["mythical"]:
+            continue
+        if const in EXCLUDE_PARADOX:
             continue
         api_name = entry["api_name"]
         if api_name in seen_api_names:

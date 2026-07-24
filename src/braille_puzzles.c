@@ -91,16 +91,9 @@ void DoBrailleDigEffect(void)
 
 bool8 CheckRelicanthWailord(void)
 {
-    // Emerald change: why did they flip it?
-    // First comes Wailord
-    if (GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_SPECIES_OR_EGG, 0) == SPECIES_WAILORD)
-    {
-        CalculatePlayerPartyCount();
-        // Last comes Relicanth
-        if (GetMonData(&gParties[B_TRAINER_PLAYER][gPartiesCount[B_TRAINER_PLAYER] - 1], MON_DATA_SPECIES_OR_EGG, 0) == SPECIES_RELICANTH)
-            return TRUE;
-    }
-    return FALSE;
+    // Randomizer change: Wailord/Relicanth party requirement removed
+    // entirely to streamline access to the Regis -- always passes.
+    return TRUE;
 }
 
 // THEORY: this was caused by block commenting out all of the older R/S braille functions but leaving the call to it itself, which creates the nullsub.

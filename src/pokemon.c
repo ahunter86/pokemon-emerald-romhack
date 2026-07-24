@@ -3365,7 +3365,7 @@ u32 GetSpeciesBaseStatTotal(enum Species species)
     return total;
 }
 
-#define RANDOMIZER_LEARNSET_CHECK_LEVEL 10
+#define RANDOMIZER_LEARNSET_SAFE_LEVEL 5
 #define RANDOMIZER_LEARNSET_BUFFER_SIZE 32
 #define RANDOMIZER_LEARNSET_BUFFER_COUNT 4
 
@@ -3382,9 +3382,6 @@ const struct LevelUpMove *GetSpeciesLevelUpLearnset(enum Species species)
     struct LevelUpMove *buffer;
     u32 count = 0;
     u32 i;
-    u32 windowIndices[4];
-    u32 windowMoves[4];
-    u32 windowCount = 0;
     bool32 hasDamaging;
 
     if (original == NULL)
@@ -3410,70 +3407,30 @@ const struct LevelUpMove *GetSpeciesLevelUpLearnset(enum Species species)
     buffer[count].level = 0;
     buffer[count].move = LEVEL_UP_MOVE_END;
 
-    // Simulate GiveBoxMonInitialMoveset's sliding-window algorithm at a
-    // representative early level, to guarantee a real damaging move is
-    // reachable -- mirrors the old build-time randomizer's safety net.
-    for (i = 0; i < count; i++)
-    {
-        u32 lvl = buffer[i].level;
-        enum Move mv;
-        bool32 alreadyKnown;
-        u32 j;
-
-        if (lvl > RANDOMIZER_LEARNSET_CHECK_LEVEL)
-            break;
-        if (lvl == 0)
-            continue;
-
-        mv = buffer[i].move;
-        alreadyKnown = FALSE;
-        for (j = 0; j < windowCount; j++)
-        {
-            if (windowMoves[j] == mv)
-            {
-                alreadyKnown = TRUE;
-                break;
-            }
-        }
-        if (alreadyKnown)
-            continue;
-
-        if (windowCount < 4)
-        {
-            windowIndices[windowCount] = i;
-            windowMoves[windowCount] = mv;
-            windowCount++;
-        }
-        else
-        {
-            for (j = 0; j < 3; j++)
-            {
-                windowIndices[j] = windowIndices[j + 1];
-                windowMoves[j] = windowMoves[j + 1];
-            }
-            windowIndices[3] = i;
-            windowMoves[3] = mv;
-        }
-    }
-
+    // Guarantee a damaging move is knowable by RANDOMIZER_LEARNSET_SAFE_LEVEL,
+    // a conservative level covering starters and early wild encounters.
+    // (The previous sliding-window simulation could land its fix on a
+    // higher-level entry than a low-level Pokemon would actually know,
+    // depending on each species' specific move-level distribution --
+    // this checks the safe range directly instead.) If nothing learnable
+    // that early is damaging, force the earliest (lowest-level) entry to
+    // be one, since that's guaranteed known regardless of starting level.
     hasDamaging = FALSE;
-    for (i = 0; i < windowCount; i++)
+    for (i = 0; i < count && buffer[i].level <= RANDOMIZER_LEARNSET_SAFE_LEVEL; i++)
     {
-        if (sMoveIsDamaging[windowMoves[i]])
+        if (sMoveIsDamaging[buffer[i].move])
         {
             hasDamaging = TRUE;
             break;
         }
     }
 
-    if (windowCount > 0 && !hasDamaging)
+    if (count > 0 && !hasDamaging)
     {
-        u32 fixIdx = windowIndices[0];
         u32 hash = RandomizerAbilityHash(gSaveBlock2Ptr->pokedex.randomizerSeed
             ^ ((u32)species * 0x27D4EB2Fu)
-            ^ (fixIdx * 0x165667B1u)
             ^ 0xDEADBEEFu);
-        buffer[fixIdx].move = sRandomizerDamagingMovePool[hash % RANDOMIZER_DAMAGING_MOVE_POOL_COUNT];
+        buffer[0].move = sRandomizerDamagingMovePool[hash % RANDOMIZER_DAMAGING_MOVE_POOL_COUNT];
     }
 
     return buffer;

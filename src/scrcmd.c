@@ -45,6 +45,9 @@
 #include "pokedex.h"
 #include "pokemon_storage_system.h"
 #include "random.h"
+#include "pokemon.h"
+#include "data/randomizer/wild_pool.h"
+#include "data/randomizer/legendary_pool.h"
 #include "overworld.h"
 #include "rotating_tile_puzzle.h"
 #include "rtc.h"
@@ -2514,12 +2517,43 @@ bool8 ScrCmd_cleartrainerflag(struct ScriptContext *ctx)
     return FALSE;
 }
 
+// Deterministic integer hash (MurmurHash3 finalizer), mirrors the one
+// used elsewhere in the randomizer.
+static u32 ScriptedWildHash(u32 x)
+{
+    x ^= x >> 16;
+    x *= 0x7feb352dU;
+    x ^= x >> 15;
+    x *= 0x846ca68bU;
+    x ^= x >> 16;
+    return x;
+}
+
+// Substitutes a scripted wild encounter's species (e.g. the Regis, or
+// any other setwildbattle-driven encounter) based on this save's
+// randomizer seed. If the original species is itself
+// legendary/mythical/Paradox, only ever substitutes with another one
+// from that same category -- otherwise uses the regular wild pool, same
+// as any other wild encounter.
+static enum Species RandomizeScriptedWildSpecies(enum Species species)
+{
+    u32 hash;
+
+    if (species == SPECIES_NONE)
+        return species;
+
+    hash = ScriptedWildHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)species * 0x2545F491u) ^ 0x27D4EB2Fu);
+    if (sSpeciesIsLegendary[SanitizeSpeciesId(species)])
+        return sRandomizerLegendaryPool[hash % RANDOMIZER_LEGENDARY_POOL_COUNT];
+    return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
+}
+
 bool8 ScrCmd_setwildbattle(struct ScriptContext *ctx)
 {
-    enum Species species = ScriptReadHalfword(ctx);
+    enum Species species = RandomizeScriptedWildSpecies(ScriptReadHalfword(ctx));
     u8 level = ScriptReadByte(ctx);
     enum Item item = ScriptReadHalfword(ctx);
-    enum Species species2 = ScriptReadHalfword(ctx);
+    enum Species species2 = RandomizeScriptedWildSpecies(ScriptReadHalfword(ctx));
     u8 level2 = ScriptReadByte(ctx);
     enum Item item2 = ScriptReadHalfword(ctx);
 

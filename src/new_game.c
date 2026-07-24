@@ -232,6 +232,11 @@ void NewGameInitData(void)
     PlayTimeCounter_Reset();
     ClearPokedexFlags();
     InitEventData();
+    // Randomizer change: skip the Relicanth/Wailord dig-and-braille
+    // sequence entirely -- the Regi ruin entrances are open from the
+    // start of a new save. Must come AFTER InitEventData(), which
+    // memsets every flag back to unset.
+    FlagSet(FLAG_REGI_DOORS_OPENED);
     ClearTVShowData();
     ResetGabbyAndTy();
     ClearSecretBases();
