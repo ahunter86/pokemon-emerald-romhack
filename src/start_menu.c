@@ -17,6 +17,7 @@
 #include "field_screen_effect.h"
 #include "frontier_pass.h"
 #include "frontier_util.h"
+#include "script_pokemon_util.h"
 #include "gpu_regs.h"
 #include "international_string_util.h"
 #include "item_menu.h"
@@ -73,6 +74,7 @@ enum
     MENU_ACTION_DEXNAV,
     MENU_ACTION_FLY,
     MENU_ACTION_REPEL,
+    MENU_ACTION_HEAL,
     MENU_ACTION_SHORTCUTS,
 };
 
@@ -108,6 +110,7 @@ static bool8 StartMenuPokemonCallback(void);
 static bool8 StartMenuBagCallback(void);
 static bool8 StartMenuFlyCallback(void);
 static bool8 StartMenuRepelCallback(void);
+static bool8 StartMenuHealCallback(void);
 static bool8 StartMenuShortcutsCallback(void);
 static void RebuildStartMenuWindow(void);
 static bool8 StartMenuPokeNavCallback(void);
@@ -206,6 +209,7 @@ static const struct MenuAction sStartMenuItems[] =
     [MENU_ACTION_BAG]             = {gText_MenuBag,     {.u8_void = StartMenuBagCallback}},
     [MENU_ACTION_FLY]             = {gText_MenuFly,     {.u8_void = StartMenuFlyCallback}},
     [MENU_ACTION_REPEL]           = {gText_MenuRepel,   {.u8_void = StartMenuRepelCallback}},
+    [MENU_ACTION_HEAL]            = {gText_MenuHeal,    {.u8_void = StartMenuHealCallback}},
     [MENU_ACTION_SHORTCUTS]       = {gText_MenuShortcuts, {.u8_void = StartMenuShortcutsCallback}},
     [MENU_ACTION_POKENAV]         = {gText_MenuPokenav, {.u8_void = StartMenuPokeNavCallback}},
     [MENU_ACTION_PLAYER]          = {gText_MenuPlayer,  {.u8_void = StartMenuPlayerNameCallback}},
@@ -682,6 +686,7 @@ static bool8 HandleStartMenuInput(void)
             && gMenuCallback != StartMenuSafariZoneRetireCallback
             && gMenuCallback != StartMenuBattlePyramidRetireCallback
             && gMenuCallback != StartMenuRepelCallback
+            && gMenuCallback != StartMenuHealCallback
             && gMenuCallback != StartMenuShortcutsCallback)
         {
            FadeScreen(FADE_TO_BLACK, 0);
@@ -763,6 +768,15 @@ static bool8 StartMenuRepelCallback(void)
     return TRUE;
 }
 
+static bool8 StartMenuHealCallback(void)
+{
+    HealPlayerParty();
+    RemoveExtraStartMenuWindows();
+    HideStartMenu(); // Also plays SE_SELECT internally
+
+    return TRUE;
+}
+
 // Redraws the Start Menu window from whatever's currently in
 // sCurrentStartMenuActions/sNumStartMenuActions -- used to swap between
 // the main list and the Shortcuts sub-list without needing a whole
@@ -789,6 +803,7 @@ static bool8 StartMenuShortcutsCallback(void)
         AddStartMenuAction(MENU_ACTION_FLY);
 
     AddStartMenuAction(MENU_ACTION_REPEL);
+    AddStartMenuAction(MENU_ACTION_HEAL);
 
     sInShortcutsSubmenu = TRUE;
     RebuildStartMenuWindow();

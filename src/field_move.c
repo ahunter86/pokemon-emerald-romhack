@@ -44,10 +44,11 @@ static bool32 IsFieldMoveUnlocked_Surf(void)
 
 static bool32 IsFieldMoveUnlocked_Fly(void)
 {
-    if (IS_FRLG)
-        return FlagGet(FLAG_BADGE03_GET);
-
-    return FlagGet(FLAG_BADGE06_GET);
+    // Randomizer change: Fly usable from the start of the game, no
+    // badge required. Which locations are actually flyable to is a
+    // separate mechanism (only previously-visited towns show up on the
+    // Fly map) and is untouched by this.
+    return TRUE;
 }
 
 static bool32 IsFieldMoveUnlocked_Dive(void)

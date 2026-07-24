@@ -480,7 +480,11 @@ static u32 RandomizerHash(u32 x)
 
 // Substitutes a wild encounter species based on this save's randomizer
 // seed. Consistent within a save (every Wurmple becomes the same
-// replacement all game), varies between saves (different seed).
+// replacement all game), varies between saves (different seed). Used
+// by the handful of single-species special cases (mass outbreaks,
+// Feebas spots, DexNav, debug battles) where there's no meaningful
+// "slot" to independently randomize -- see RandomizeWildSpeciesByKey
+// for the main encounter-table path.
 static enum Species RandomizeWildSpecies(enum Species species)
 {
     u32 hash;
@@ -492,9 +496,33 @@ static enum Species RandomizeWildSpecies(enum Species species)
     return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
 }
 
+// Picks a genuinely fresh random species from the wild pool for the
+// main encounter-table paths (land, water, rock smash, fishing) --
+// unlike RandomizeWildSpecies (deterministic per original species),
+// this uses the real RNG, so every encounter attempt is independent:
+// the same spot can give a totally different species on back-to-back
+// tries, not limited by however many slots the vanilla table has.
+static enum Species RandomizeWildSpeciesFresh(void)
+{
+    return sRandomizerWildPool[Random() % RANDOMIZER_WILD_POOL_COUNT];
+}
+
 void CreateWildMon(enum Species species, u8 level)
 {
     species = RandomizeWildSpecies(species);
+    ZeroEnemyPartyMons();
+    u32 personality = GetMonPersonality(species, GetSynchronizedGender(WILDMON_ORIGIN, species), PickWildMonNature(species), RANDOM_UNOWN_LETTER);
+    CreateMonWithIVs(&gParties[B_TRAINER_OPPONENT_A][0], species, level, personality, OTID_STRUCT_PLAYER_ID, USE_RANDOM_IVS);
+    GiveMonInitialMoveset(&gParties[B_TRAINER_OPPONENT_A][0]);
+}
+
+// Same as CreateWildMon, but picks a fresh random species (see
+// RandomizeWildSpeciesFresh) every call instead of a deterministic
+// per-species substitute -- used by the main encounter-table paths
+// (land, water, rock smash, fishing).
+static void CreateWildMonFresh(u8 level)
+{
+    enum Species species = RandomizeWildSpeciesFresh();
     ZeroEnemyPartyMons();
     u32 personality = GetMonPersonality(species, GetSynchronizedGender(WILDMON_ORIGIN, species), PickWildMonNature(species), RANDOM_UNOWN_LETTER);
     CreateMonWithIVs(&gParties[B_TRAINER_OPPONENT_A][0], species, level, personality, OTID_STRUCT_PLAYER_ID, USE_RANDOM_IVS);
@@ -561,7 +589,7 @@ bool8 TryGenerateWildMon(const struct WildPokemonInfo *wildMonInfo, enum WildPok
     if (gMapHeader.mapLayoutId != LAYOUT_BATTLE_FRONTIER_BATTLE_PIKE_ROOM_WILD_MONS && flags & WILD_CHECK_KEEN_EYE && !IsAbilityAllowingEncounter(level))
         return FALSE;
 
-    CreateWildMon(wildMonInfo->wildPokemon[wildMonIndex].species, level);
+    CreateWildMonFresh(level);
     return TRUE;
 }
 
@@ -572,7 +600,7 @@ static u16 GenerateFishingWildMon(const struct WildPokemonInfo *wildMonInfo, u8 
     u8 level = ChooseWildMonLevel(wildMonInfo->wildPokemon, wildMonIndex, WILD_AREA_FISHING);
 
     UpdateChainFishingStreak();
-    CreateWildMon(wildMonSpecies, level);
+    CreateWildMonFresh(level);
     return wildMonSpecies;
 }
 

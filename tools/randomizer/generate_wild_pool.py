@@ -30,6 +30,17 @@ EXCLUDE_PARADOX = {
     "SPECIES_IRON_BOULDER", "SPECIES_IRON_CROWN",
 }
 
+# Ultra Beasts (Gen 7) -- not flagged as legendary/mythical by PokeAPI,
+# so excluded by an explicit constant list instead. Allowed for
+# legendary-category scripted encounters (legendary_pool.h), same as
+# legendaries/mythicals/Paradox -- just never a regular wild substitute.
+EXCLUDE_ULTRA_BEASTS = {
+    "SPECIES_NIHILEGO", "SPECIES_BUZZWOLE", "SPECIES_PHEROMOSA",
+    "SPECIES_XURKITREE", "SPECIES_CELESTEELA", "SPECIES_KARTANA",
+    "SPECIES_GUZZLORD", "SPECIES_POIPOLE", "SPECIES_NAGANADEL",
+    "SPECIES_STAKATAKA", "SPECIES_BLACEPHALON",
+}
+
 
 def main():
     if not SPECIES_POOL_PATH.exists():
@@ -46,6 +57,8 @@ def main():
         if entry["legendary"] or entry["mythical"]:
             continue
         if const in EXCLUDE_PARADOX:
+            continue
+        if const in EXCLUDE_ULTRA_BEASTS:
             continue
         api_name = entry["api_name"]
         if api_name in seen_api_names:

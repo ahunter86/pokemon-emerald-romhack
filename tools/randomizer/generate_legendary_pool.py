@@ -36,9 +36,21 @@ PARADOX_SPECIES = {
     "SPECIES_IRON_BOULDER", "SPECIES_IRON_CROWN",
 }
 
+# Ultra Beasts (Gen 7) -- not flagged as legendary/mythical by PokeAPI,
+# so included by an explicit constant list instead. Mirrors the same
+# set excluded from the wild pool in generate_wild_pool.py.
+ULTRA_BEAST_SPECIES = {
+    "SPECIES_NIHILEGO", "SPECIES_BUZZWOLE", "SPECIES_PHEROMOSA",
+    "SPECIES_XURKITREE", "SPECIES_CELESTEELA", "SPECIES_KARTANA",
+    "SPECIES_GUZZLORD", "SPECIES_POIPOLE", "SPECIES_NAGANADEL",
+    "SPECIES_STAKATAKA", "SPECIES_BLACEPHALON",
+}
+
 
 def is_legendary_category(entry):
-    return entry["legendary"] or entry["mythical"] or entry["constant"] in PARADOX_SPECIES
+    return (entry["legendary"] or entry["mythical"]
+            or entry["constant"] in PARADOX_SPECIES
+            or entry["constant"] in ULTRA_BEAST_SPECIES)
 
 
 def main():
