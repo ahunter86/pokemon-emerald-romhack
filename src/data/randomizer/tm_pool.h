@@ -57,14 +57,6 @@ static const u16 sRandomizerTMPool[] =
     ITEM_TM_SKILL_SWAP,
     ITEM_TM_SNATCH,
     ITEM_TM_OVERHEAT,
-    ITEM_HM_CUT,
-    ITEM_HM_FLY,
-    ITEM_HM_SURF,
-    ITEM_HM_STRENGTH,
-    ITEM_HM_FLASH,
-    ITEM_HM_ROCK_SMASH,
-    ITEM_HM_WATERFALL,
-    ITEM_HM_DIVE,
 };
 
 #define RANDOMIZER_TM_POOL_COUNT (sizeof(sRandomizerTMPool) / sizeof(sRandomizerTMPool[0]))

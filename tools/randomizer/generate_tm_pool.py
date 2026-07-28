@@ -41,6 +41,8 @@ def main():
         pocket = pocket_match.group(1) if pocket_match else None
         if pocket != "POCKET_TM_HM":
             continue
+        if name.startswith("ITEM_HM"):
+            continue  # HMs excluded -- only regular TMs are eligible
 
         name_match = NAME_PATTERN.search(window)
         item_name = name_match.group(1) if name_match else ""

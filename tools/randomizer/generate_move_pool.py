@@ -35,6 +35,10 @@ EXTRA_EXCLUDED_MOVES = {
     "MOVE_BOUNCY_BUBBLE", "MOVE_BUZZY_BUZZ", "MOVE_SIZZLY_SLIDE",
     "MOVE_GLITZY_GLOW", "MOVE_BADDY_BAD", "MOVE_SAPPY_SEED",
     "MOVE_FREEZY_FROST", "MOVE_SPARKLY_SWIRL",
+    # HM moves -- excluded from the level-up learnset randomizer so a
+    # Pokemon never randomly "learns" an HM via leveling up.
+    "MOVE_CUT", "MOVE_FLY", "MOVE_SURF", "MOVE_STRENGTH", "MOVE_FLASH",
+    "MOVE_ROCK_SMASH", "MOVE_WATERFALL", "MOVE_DIVE",
 }
 
 

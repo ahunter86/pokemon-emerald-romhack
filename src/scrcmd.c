@@ -629,10 +629,21 @@ bool8 ScrCmd_additem(struct ScriptContext *ctx)
 {
     enum Item itemId = VarGet(ScriptReadHalfword(ctx));
     u32 quantity = VarGet(ScriptReadHalfword(ctx));
+    u32 uniqueKey;
 
     Script_RequestEffects(SCREFF_V1 | SCREFF_SAVE);
 
-    gSpecialVar_Result = AddBagItem(RandomizeGivenTM(itemId, (u32)ctx->scriptPtr), quantity);
+    // NOTE: ctx->scriptPtr is NOT a reliable uniqueKey here -- almost
+    // every giveitem/finditem call in the game routes through the same
+    // single shared "additem ITEMID, AMOUNT" line in Std_ObtainItem
+    // (data/scripts/obtain_item.inc), so every NPC that gives an item
+    // via that macro would hit this exact same bytecode location and
+    // get the exact same randomized result. Use the last-talked-to
+    // object (reliably set for NPC conversations) plus the current map
+    // and the original item as the key instead -- differentiates NPCs
+    // even though they share the same additem call site.
+    uniqueKey = ((u32)gMapHeader.mapLayoutId << 16) ^ ((u32)gSpecialVar_LastTalked << 8) ^ (u32)itemId;
+    gSpecialVar_Result = AddBagItem(RandomizeGivenTM(itemId, uniqueKey), quantity);
     return FALSE;
 }
 

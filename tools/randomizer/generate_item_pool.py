@@ -18,6 +18,7 @@ ITEM_BLOCK_START = re.compile(r'\[(ITEM_[A-Z0-9_]+)\]\s*=')
 POCKET_PATTERN = re.compile(r'\.pocket\s*=\s*(POCKET_[A-Z0-9_]+)')
 NAME_PATTERN = re.compile(r'\.name\s*=\s*ITEM_NAME\("([^"]*)"\)')
 DESC_PATTERN = re.compile(r'\.description\s*=\s*sQuestionMarksDesc')
+SORT_TYPE_PATTERN = re.compile(r'\.sortType\s*=\s*(ITEM_TYPE_[A-Z0-9_]+)')
 
 SAFE_POCKETS = {"POCKET_ITEMS", "POCKET_TM_HM"}  # Poké Balls, berries intentionally excluded
 
@@ -25,6 +26,22 @@ SAFE_POCKETS = {"POCKET_ITEMS", "POCKET_TM_HM"}  # Poké Balls, berries intentio
 # Sitrus Berry is a genuinely useful, non-gimmicky item worth having in
 # the pool even though berries are otherwise excluded entirely.
 EXTRA_INCLUDED_ITEMS = {"ITEM_SITRUS_BERRY"}
+
+# Battle-gimmick item categories -- identified by their .sortType, since
+# name-substring matching is unreliable (e.g. "ITE" as a substring would
+# false-positive on unrelated items like White Herb).
+EXCLUDE_SORT_TYPES = {"ITEM_TYPE_MEGA_STONE", "ITEM_TYPE_Z_CRYSTAL", "ITEM_TYPE_TERA_SHARD"}
+
+# Rare Candy / Exp Candies -- direct level-up items, and Dynamax-related
+# items -- all excluded by exact constant name instead, since they're
+# each a small, specific set rather than sharing one sortType.
+EXCLUDE_SPECIFIC_ITEMS = {
+    "ITEM_RARE_CANDY",
+    "ITEM_EXP_CANDY_XS", "ITEM_EXP_CANDY_S", "ITEM_EXP_CANDY_M",
+    "ITEM_EXP_CANDY_L", "ITEM_EXP_CANDY_XL",
+    "ITEM_DYNAMAX_CANDY", "ITEM_MAX_MUSHROOMS", "ITEM_DYNAMAX_BAND",
+    "ITEM_DYNITE_ORE",
+}
 
 
 def main():
@@ -47,6 +64,12 @@ def main():
         pocket_match = POCKET_PATTERN.search(window)
         pocket = pocket_match.group(1) if pocket_match else None
         if pocket not in SAFE_POCKETS and name not in EXTRA_INCLUDED_ITEMS:
+            continue
+        if name in EXCLUDE_SPECIFIC_ITEMS:
+            continue
+        sort_type_match = SORT_TYPE_PATTERN.search(window)
+        sort_type = sort_type_match.group(1) if sort_type_match else None
+        if sort_type in EXCLUDE_SORT_TYPES:
             continue
 
         name_match = NAME_PATTERN.search(window)
