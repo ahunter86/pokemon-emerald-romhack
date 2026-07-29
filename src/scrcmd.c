@@ -643,7 +643,18 @@ bool8 ScrCmd_additem(struct ScriptContext *ctx)
     // and the original item as the key instead -- differentiates NPCs
     // even though they share the same additem call site.
     uniqueKey = ((u32)gMapHeader.mapLayoutId << 16) ^ ((u32)gSpecialVar_LastTalked << 8) ^ (u32)itemId;
-    gSpecialVar_Result = AddBagItem(RandomizeGivenTM(itemId, uniqueKey), quantity);
+    itemId = RandomizeGivenTM(itemId, uniqueKey);
+    // Write the randomized result back into both VAR_0x8000 and
+    // VAR_0x8006 -- Std_ObtainItem's message-buffering step reads the
+    // former, and ScriptShowItemDescription (the item description
+    // popup, src/overworld.c) separately reads the latter (copied
+    // BEFORE this additem call even runs). Without updating both, the
+    // pickup message and/or the description popup would show the
+    // original vanilla TM instead of what's actually being added to
+    // the bag.
+    VarSet(VAR_0x8000, itemId);
+    VarSet(VAR_0x8006, itemId);
+    gSpecialVar_Result = AddBagItem(itemId, quantity);
     return FALSE;
 }
 

@@ -6,6 +6,7 @@
 #include "field_control_avatar.h"
 #include "fieldmap.h"
 #include "item.h"
+#include "item_ball.h"
 #include "item_menu.h"
 #include "main.h"
 #include "random.h"
@@ -2833,21 +2834,33 @@ void ObjectEventInteractionApplyMulch(void)
 
 void ObjectEventInteractionPickBerryTree(void)
 {
+    // Randomizer change: berry trees act like item balls -- picking one
+    // gives a single random item instead of the actual berry (mutation
+    // mechanics dropped entirely, since they're berry-specific and
+    // don't apply once the reward is a generic item). Uses the berry
+    // tree's own id as the uniqueKey, so every tree location is
+    // randomized independently. ITEM_POTION is just a placeholder
+    // "safe pocket" original passed to RandomizeFieldItem -- its own
+    // pocket check would otherwise reject a berry as unsafe to
+    // substitute, since regular berries are intentionally excluded
+    // from the item pool.
     u8 id = GetObjectEventBerryTreeId(gSelectedObjectEvent);
-    u8 berry = GetBerryTypeByBerryTreeId(id);
-    u8 mutation = GetTreeMutationValue(id);
+    enum Item randomItem = RandomizeFieldItem(ITEM_POTION, ((u32)id) ^ 0xB3223A57u);
 
-    if (!OW_BERRY_MUTATIONS || mutation == 0)
-    {
-        gSpecialVar_0x8004 = AddBagItem(BerryTypeToItemId(berry), GetBerryCountByBerryTreeId(id));
-        return;
-    }
-    gSpecialVar_0x8004 = (CheckBagHasSpace(BerryTypeToItemId(berry), GetBerryCountByBerryTreeId(id)) && CheckBagHasSpace(BerryTypeToItemId(mutation), 1)) + 2;
-    if (gSpecialVar_0x8004 == 3)
-    {
-        AddBagItem(BerryTypeToItemId(berry), GetBerryCountByBerryTreeId(id));
-        AddBagItem(BerryTypeToItemId(mutation), 1);
-    }
+    // The berry_tree.inc script buffers STR_VAR_1 (item name) and
+    // STR_VAR_2 (count) with the ORIGINAL berry's name/count before the
+    // player even confirms picking (as soon as the tree is fully
+    // grown), and separately never sets gSpecialVar_0x8006 at all (the
+    // TM pickup flow does, but this one doesn't) -- so both the "You
+    // found X!"/"Picked the X" messages and the showberrydescription
+    // popup would otherwise show/reference the wrong item. Overwrite
+    // all three here, since this is the only place that knows the
+    // real randomized item.
+    CopyItemNameHandlePlural(randomItem, gStringVar1, 1);
+    ConvertIntToDecimalStringN(gStringVar2, 1, STR_CONV_MODE_LEFT_ALIGN, 1);
+    gSpecialVar_0x8006 = randomItem;
+
+    gSpecialVar_0x8004 = AddBagItem(randomItem, 1);
 }
 
 void ObjectEventInteractionRemoveBerryTree(void)

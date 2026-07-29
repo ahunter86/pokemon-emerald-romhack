@@ -119,10 +119,26 @@ def main():
             print(f"  WARNING: skipping {api_name}, {e}")
             continue
         evolves_from = detail.get("evolves_from_species")
+
+        # Base stat total (BST) -- lives on the separate "pokemon"
+        # resource (stats aren't part of the species resource), so this
+        # is a second fetch per species. Use the default variety.
+        bst = None
+        default_variety = next((v for v in detail.get("varieties", []) if v.get("is_default")), None)
+        if default_variety is None and detail.get("varieties"):
+            default_variety = detail["varieties"][0]
+        if default_variety is not None:
+            try:
+                pokemon_detail = fetch_json(default_variety["pokemon"]["url"])
+                bst = sum(s["base_stat"] for s in pokemon_detail["stats"])
+            except (RuntimeError, KeyError) as e:
+                print(f"  WARNING: couldn't fetch BST for {api_name}, {e}")
+
         detail_cache[api_name] = {
             "legendary": detail.get("is_legendary", False),
             "mythical": detail.get("is_mythical", False),
             "evolves_from": evolves_from["name"] if evolves_from else None,
+            "bst": bst,
         }
         if i % 100 == 0:
             print(f"  fetched details for {i}/{len(unique_api_names)} unique species...")
@@ -140,6 +156,7 @@ def main():
             "mythical": flags["mythical"],
             "has_pre_evolution": flags["evolves_from"] is not None,
             "evolves_from": flags["evolves_from"],
+            "bst": flags["bst"],
         })
 
     legendary_count = sum(1 for p in pool if p["legendary"] or p["mythical"])

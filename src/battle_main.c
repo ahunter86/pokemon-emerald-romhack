@@ -17,6 +17,7 @@
 #include "battle_z_move.h"
 #include "data/randomizer/rival_pool.h"
 #include "data/randomizer/wild_pool.h"
+#include "data/randomizer/bst_table.h"
 #include "battle_gimmick.h"
 #include "berry.h"
 #include "bg.h"
@@ -1909,9 +1910,57 @@ static u32 TrainerMonHash(u32 x)
 static enum Species RandomizeTrainerMonSpecies(enum Species species, u32 uniqueKey)
 {
     u32 hash;
+    u16 originalBST;
+    u16 lowerBound, upperBound;
+    u32 eligibleCount;
+    u32 targetIndex;
+    u32 seenCount;
+    u32 i;
     if (species == SPECIES_NONE)
         return species;
     hash = TrainerMonHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ (uniqueKey * 0x27220A95u) ^ 0x1B873593u);
+    // Randomizer change: restrict substitutes to species with a similar
+    // base stat total (BST), so trainer battles stay roughly balanced
+    // relative to vanilla rather than potentially swapping, say, a
+    // Zigzagoon for a 600-BST pseudo-legendary. Window is +10%/-10% of
+    // the original's BST, widened to -20% below if the original
+    // exceeds 650 (very few non-legendary species do, and a narrow
+    // window could otherwise come up empty for something like
+    // Slaking). Species with no known BST (sSpeciesBST defaults to 0
+    // for anything not in the generated table) fall back to
+    // unrestricted substitution.
+    originalBST = sSpeciesBST[SanitizeSpeciesId(species)];
+    if (originalBST == 0)
+        return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
+    upperBound = (originalBST * 110) / 100;
+    lowerBound = (originalBST > 650) ? (originalBST * 80) / 100 : (originalBST * 90) / 100;
+    // Two-pass selection (count eligible entries, then pick the Nth
+    // one) instead of building a filtered array on the stack -- the
+    // wild pool has ~900 entries, too large to safely stack-allocate
+    // on the GBA (IWRAM is only 32KB total).
+    eligibleCount = 0;
+    for (i = 0; i < RANDOMIZER_WILD_POOL_COUNT; i++)
+    {
+        u16 candidateBST = sSpeciesBST[SanitizeSpeciesId(sRandomizerWildPool[i])];
+        if (candidateBST != 0 && candidateBST >= lowerBound && candidateBST <= upperBound)
+            eligibleCount++;
+    }
+    if (eligibleCount == 0)
+        return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
+    targetIndex = hash % eligibleCount;
+    seenCount = 0;
+    for (i = 0; i < RANDOMIZER_WILD_POOL_COUNT; i++)
+    {
+        u16 candidateBST = sSpeciesBST[SanitizeSpeciesId(sRandomizerWildPool[i])];
+        if (candidateBST != 0 && candidateBST >= lowerBound && candidateBST <= upperBound)
+        {
+            if (seenCount == targetIndex)
+                return sRandomizerWildPool[i];
+            seenCount++;
+        }
+    }
+    // Unreachable given the two passes use identical conditions, but
+    // keep a safe fallback regardless.
     return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
 }
 
