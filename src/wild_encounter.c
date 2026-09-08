@@ -516,6 +516,98 @@ void CreateWildMon(enum Species species, u8 level)
     GiveMonInitialMoveset(&gParties[B_TRAINER_OPPONENT_A][0]);
 }
 
+// Substitutes a "gift" Pokemon's species (e.g. fossils revived at
+// Devon Corp) based on this save's randomizer seed. Reads the
+// original species from gSpecialVar_0x8004 and returns the
+// substitute directly, so a script can do
+// "setvar VAR_0x8004, SPECIES_X" then
+// "specialvar VAR_0x8004, RandomizeGiftMonSpecies" to get a
+// randomized result back in the same variable. Deliberately exposed
+// as a script special rather than hooking every givemon call in the
+// game generically -- only whichever specific scripts explicitly
+// call this get randomized, so other gift Pokemon (e.g. anything
+// with species-specific logic elsewhere) are left alone unless
+// someone chooses to add this call to their script too. Deterministic
+// like the rest of the randomizer, so calling it multiple times with
+// the same original species (e.g. once for a preview message, again
+// later for the actual givemon) always gives the same result.
+u16 RandomizeGiftMonSpecies(void)
+{
+    enum Species original = gSpecialVar_0x8004;
+    u32 hash = RandomizerHash(gSaveBlock2Ptr->pokedex.randomizerSeed ^ ((u32)original * 0x9E3779B1u) ^ 0xC2B2AE3Du);
+    return sRandomizerWildPool[hash % RANDOMIZER_WILD_POOL_COUNT];
+}
+
+// Every fossil item this expansion supports, and the base species it
+// revives into -- used by the Devon Corp fossil scientist so a player
+// handing over their ACTUAL fossil gets randomized based on the right
+// original species (e.g. Kabuto for Helix Fossil), not always
+// Lileep/Anorith regardless of what they're carrying.
+static const struct
+{
+    enum Item item;
+    enum Species species;
+} sFossilItemToSpecies[] =
+{
+    {ITEM_HELIX_FOSSIL, SPECIES_KABUTO},
+    {ITEM_DOME_FOSSIL, SPECIES_OMANYTE},
+    {ITEM_OLD_AMBER, SPECIES_AERODACTYL},
+    {ITEM_ROOT_FOSSIL, SPECIES_LILEEP},
+    {ITEM_CLAW_FOSSIL, SPECIES_ANORITH},
+    {ITEM_ARMOR_FOSSIL, SPECIES_SHIELDON},
+    {ITEM_SKULL_FOSSIL, SPECIES_CRANIDOS},
+    {ITEM_COVER_FOSSIL, SPECIES_TIRTOUGA},
+    {ITEM_PLUME_FOSSIL, SPECIES_ARCHEN},
+    {ITEM_JAW_FOSSIL, SPECIES_TYRUNT},
+    {ITEM_SAIL_FOSSIL, SPECIES_AMAURA},
+};
+
+// Checks the player's bag for any fossil item (any of the 11 types
+// above, not just vanilla Emerald's Root/Claw). If the player has
+// exactly one type, stores it in gSpecialVar_0x8005 and returns TRUE,
+// so the calling script can consume that specific item and use its
+// real name. Returns FALSE if the player has zero or multiple
+// different fossil types -- the script falls back to a generic
+// choice with no item consumed in that case, since there's no single
+// obvious item to take.
+bool8 CheckPlayerFossilItem(void)
+{
+    u32 i;
+    u32 foundCount = 0;
+    enum Item foundItem = ITEM_NONE;
+
+    for (i = 0; i < ARRAY_COUNT(sFossilItemToSpecies); i++)
+    {
+        if (CheckBagHasItem(sFossilItemToSpecies[i].item, 1))
+        {
+            foundCount++;
+            foundItem = sFossilItemToSpecies[i].item;
+        }
+    }
+
+    if (foundCount == 1)
+    {
+        gSpecialVar_0x8005 = foundItem;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+// Maps a fossil item (read from gSpecialVar_0x8005, set by
+// CheckPlayerFossilItem above) to its corresponding base species.
+u16 GetFossilBaseSpecies(void)
+{
+    enum Item item = gSpecialVar_0x8005;
+    u32 i;
+
+    for (i = 0; i < ARRAY_COUNT(sFossilItemToSpecies); i++)
+    {
+        if (sFossilItemToSpecies[i].item == item)
+            return sFossilItemToSpecies[i].species;
+    }
+    return SPECIES_LILEEP; // Shouldn't happen, but a safe fallback.
+}
+
 // Same as CreateWildMon, but picks a fresh random species (see
 // RandomizeWildSpeciesFresh) every call instead of a deterministic
 // per-species substitute -- used by the main encounter-table paths

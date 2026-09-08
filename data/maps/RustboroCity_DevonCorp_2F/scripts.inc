@@ -59,11 +59,35 @@ RustboroCity_DevonCorp_2F_EventScript_FossilScientist::
 	faceplayer
 	goto_if_eq VAR_FOSSIL_RESURRECTION_STATE, 2, RustboroCity_DevonCorp_2F_EventScript_FossilMonReady
 	goto_if_eq VAR_FOSSIL_RESURRECTION_STATE, 1, RustboroCity_DevonCorp_2F_EventScript_StillRegenerating
+@ Randomizer change: no longer requires bringing a specific fossil
+@ item -- item randomization means Mirage Tower may not give a
+@ fossil at all, or could give any of several fossil types this
+@ expansion supports, not just the two vanilla Emerald checks for.
+@ The scientist now offers a direct choice between the two fossil
+@ Pokemon instead, reusing the existing ChooseFossil multichoice
+@ (removeitem on a fossil the player doesn't have is a safe no-op,
+@ so this works correctly with zero, one, or both fossils in hand).
 	msgbox RustboroCity_DevonCorp_2F_Text_DevelopDeviceToResurrectFossils, MSGBOX_DEFAULT
-	checkitem ITEM_ROOT_FOSSIL
-	goto_if_eq VAR_RESULT, TRUE, RustboroCity_DevonCorp_2F_EventScript_NoticeRootFossil
-	checkitem ITEM_CLAW_FOSSIL
-	goto_if_eq VAR_RESULT, TRUE, RustboroCity_DevonCorp_2F_EventScript_NoticeClawFossil
+	msgbox RustboroCity_DevonCorp_2F_Text_WantToBringFossilBackToLife, MSGBOX_YESNO
+	goto_if_eq VAR_RESULT, NO, RustboroCity_DevonCorp_2F_EventScript_DeclineGiveFossil
+@ Randomizer change: if the player has exactly one type of actual
+@ fossil item, use and consume that specific one (with its real
+@ name/base species) instead of the generic two-option choice.
+	specialvar VAR_RESULT, CheckPlayerFossilItem
+	goto_if_eq VAR_RESULT, TRUE, RustboroCity_DevonCorp_2F_EventScript_GiveSpecificFossil
+	goto RustboroCity_DevonCorp_2F_EventScript_ChooseFossil
+	end
+
+RustboroCity_DevonCorp_2F_EventScript_GiveSpecificFossil::
+	bufferitemname STR_VAR_1, VAR_0x8005
+	msgbox RustboroCity_DevonCorp_2F_Text_HandedFossilToResearcher, MSGBOX_DEFAULT
+	removeitem VAR_0x8005
+@ VAR_WHICH_FOSSIL_REVIVED normally holds 1 (Lileep) or 2 (Anorith)
+@ from the generic choice path below, but a real species ID works
+@ fine too (none of the 11 fossil base species equal 1 or 2) --
+@ FossilMonReady's fallback case handles this generic path.
+	specialvar VAR_WHICH_FOSSIL_REVIVED, GetFossilBaseSpecies
+	setvar VAR_FOSSIL_RESURRECTION_STATE, 1
 	release
 	end
 
@@ -127,23 +151,92 @@ RustboroCity_DevonCorp_2F_EventScript_StillRegenerating::
 RustboroCity_DevonCorp_2F_EventScript_FossilMonReady::
 	goto_if_eq VAR_WHICH_FOSSIL_REVIVED, 1, RustboroCity_DevonCorp_2F_EventScript_LileepReady
 	goto_if_eq VAR_WHICH_FOSSIL_REVIVED, 2, RustboroCity_DevonCorp_2F_EventScript_AnorithReady
+@ Randomizer change: any other value means GiveSpecificFossil
+@ stored a real species ID here (the specific-fossil path above).
+	goto RustboroCity_DevonCorp_2F_EventScript_SpecificFossilReady
+	end
+
+RustboroCity_DevonCorp_2F_EventScript_SpecificFossilReady::
+	copyvar VAR_0x8004, VAR_WHICH_FOSSIL_REVIVED
+	specialvar VAR_0x8004, RandomizeGiftMonSpecies
+	copyvar VAR_TEMP_TRANSFERRED_SPECIES, VAR_0x8004
+	bufferspeciesname STR_VAR_2, VAR_TEMP_TRANSFERRED_SPECIES
+	msgbox RustboroCity_DevonCorp_2F_Text_FossilizedMonBroughtBackToLife, MSGBOX_DEFAULT
+	goto RustboroCity_DevonCorp_2F_EventScript_ReceiveSpecificFossilMon
+	end
+
+RustboroCity_DevonCorp_2F_EventScript_ReceiveSpecificFossilMon::
+	givemon VAR_TEMP_TRANSFERRED_SPECIES, 20
+	goto_if_eq VAR_RESULT, MON_GIVEN_TO_PARTY, RustboroCity_DevonCorp_2F_EventScript_ReceiveSpecificFossilMonParty
+	goto_if_eq VAR_RESULT, MON_GIVEN_TO_PC, RustboroCity_DevonCorp_2F_EventScript_ReceiveSpecificFossilMonPC
+	goto Common_EventScript_NoMoreRoomForPokemon
+	end
+
+RustboroCity_DevonCorp_2F_EventScript_ReceiveSpecificFossilMonParty::
+	call RustboroCity_DevonCorp_2F_EventScript_ReceivedSpecificFossilMonFanfare
+	msgbox gText_NicknameThisPokemon, MSGBOX_YESNO
+	goto_if_eq VAR_RESULT, NO, RustboroCity_DevonCorp_2F_EventScript_FinishReceivingSpecificFossilMon
+	call Common_EventScript_GetGiftMonPartySlot
+	call Common_EventScript_NameReceivedPartyMon
+	goto RustboroCity_DevonCorp_2F_EventScript_FinishReceivingSpecificFossilMon
+	end
+
+RustboroCity_DevonCorp_2F_EventScript_ReceiveSpecificFossilMonPC::
+	call RustboroCity_DevonCorp_2F_EventScript_ReceivedSpecificFossilMonFanfare
+	msgbox gText_NicknameThisPokemon, MSGBOX_YESNO
+	goto_if_eq VAR_RESULT, NO, RustboroCity_DevonCorp_2F_EventScript_TransferSpecificFossilMonToPC
+	call Common_EventScript_NameReceivedBoxMon
+	goto RustboroCity_DevonCorp_2F_EventScript_TransferSpecificFossilMonToPC
+	end
+
+RustboroCity_DevonCorp_2F_EventScript_TransferSpecificFossilMonToPC::
+	call Common_EventScript_TransferredToPC
+	goto RustboroCity_DevonCorp_2F_EventScript_FinishReceivingSpecificFossilMon
+	end
+
+RustboroCity_DevonCorp_2F_EventScript_ReceivedSpecificFossilMonFanfare::
+	bufferspeciesname STR_VAR_2, VAR_TEMP_TRANSFERRED_SPECIES
+	playfanfare MUS_OBTAIN_ITEM
+	message RustboroCity_DevonCorp_2F_Text_ReceivedMonFromResearcher
+	waitmessage
+	waitfanfare
+	bufferspeciesname STR_VAR_1, VAR_TEMP_TRANSFERRED_SPECIES
+	return
+
+RustboroCity_DevonCorp_2F_EventScript_FinishReceivingSpecificFossilMon::
+	setvar VAR_FOSSIL_RESURRECTION_STATE, 0
+	setflag FLAG_RECEIVED_REVIVED_FOSSIL_MON
+	release
 	end
 
 RustboroCity_DevonCorp_2F_EventScript_LileepReady::
-	bufferspeciesname STR_VAR_2, SPECIES_LILEEP
+@ Randomizer change: preview the actual randomized species (see
+@ ReceiveLileep below) instead of always showing Lileep.
+	setvar VAR_0x8004, SPECIES_LILEEP
+	specialvar VAR_0x8004, RandomizeGiftMonSpecies
+	bufferspeciesname STR_VAR_2, VAR_0x8004
 	msgbox RustboroCity_DevonCorp_2F_Text_FossilizedMonBroughtBackToLife, MSGBOX_DEFAULT
 	goto RustboroCity_DevonCorp_2F_EventScript_ReceiveLileep
 	end
 
 RustboroCity_DevonCorp_2F_EventScript_AnorithReady::
-	bufferspeciesname STR_VAR_2, SPECIES_ANORITH
+@ Randomizer change: same as LileepReady above.
+	setvar VAR_0x8004, SPECIES_ANORITH
+	specialvar VAR_0x8004, RandomizeGiftMonSpecies
+	bufferspeciesname STR_VAR_2, VAR_0x8004
 	msgbox RustboroCity_DevonCorp_2F_Text_FossilizedMonBroughtBackToLife, MSGBOX_DEFAULT
 	goto RustboroCity_DevonCorp_2F_EventScript_ReceiveAnorith
 	end
 
 RustboroCity_DevonCorp_2F_EventScript_ReceiveLileep::
-	setvar VAR_TEMP_TRANSFERRED_SPECIES, SPECIES_LILEEP
-	givemon SPECIES_LILEEP, 20
+@ Randomizer change: give the randomized species (same result as
+@ LileepReady above, since this is deterministic) instead of
+@ always giving Lileep. VAR_TEMP_TRANSFERRED_SPECIES holds the
+@ result for the rest of this flow (ReceivedLileepFanfare below).
+	setvar VAR_0x8004, SPECIES_LILEEP
+	specialvar VAR_0x8004, RandomizeGiftMonSpecies
+	copyvar VAR_TEMP_TRANSFERRED_SPECIES, VAR_0x8004
+	givemon VAR_TEMP_TRANSFERRED_SPECIES, 20
 	goto_if_eq VAR_RESULT, MON_GIVEN_TO_PARTY, RustboroCity_DevonCorp_2F_EventScript_ReceiveLileepParty
 	goto_if_eq VAR_RESULT, MON_GIVEN_TO_PC, RustboroCity_DevonCorp_2F_EventScript_ReceiveLileepPC
 	goto Common_EventScript_NoMoreRoomForPokemon
@@ -172,12 +265,14 @@ RustboroCity_DevonCorp_2F_EventScript_TransferLileepToPC::
 	end
 
 RustboroCity_DevonCorp_2F_EventScript_ReceivedLileepFanfare::
-	bufferspeciesname STR_VAR_2, SPECIES_LILEEP
+@ Randomizer change: VAR_TEMP_TRANSFERRED_SPECIES already holds
+@ the randomized species, set by ReceiveLileep just before this.
+	bufferspeciesname STR_VAR_2, VAR_TEMP_TRANSFERRED_SPECIES
 	playfanfare MUS_OBTAIN_ITEM
 	message RustboroCity_DevonCorp_2F_Text_ReceivedMonFromResearcher
 	waitmessage
 	waitfanfare
-	bufferspeciesname STR_VAR_1, SPECIES_LILEEP
+	bufferspeciesname STR_VAR_1, VAR_TEMP_TRANSFERRED_SPECIES
 	return
 
 RustboroCity_DevonCorp_2F_EventScript_FinishReceivingLileep::
@@ -187,8 +282,11 @@ RustboroCity_DevonCorp_2F_EventScript_FinishReceivingLileep::
 	end
 
 RustboroCity_DevonCorp_2F_EventScript_ReceiveAnorith::
-	setvar VAR_TEMP_TRANSFERRED_SPECIES, SPECIES_ANORITH
-	givemon SPECIES_ANORITH, 20
+@ Randomizer change: same as ReceiveLileep above.
+	setvar VAR_0x8004, SPECIES_ANORITH
+	specialvar VAR_0x8004, RandomizeGiftMonSpecies
+	copyvar VAR_TEMP_TRANSFERRED_SPECIES, VAR_0x8004
+	givemon VAR_TEMP_TRANSFERRED_SPECIES, 20
 	goto_if_eq VAR_RESULT, MON_GIVEN_TO_PARTY, RustboroCity_DevonCorp_2F_EventScript_ReceiveAnorithParty
 	goto_if_eq VAR_RESULT, MON_GIVEN_TO_PC, RustboroCity_DevonCorp_2F_EventScript_ReceiveAnorithPC
 	goto Common_EventScript_NoMoreRoomForPokemon
@@ -217,12 +315,13 @@ RustboroCity_DevonCorp_2F_EventScript_TransferAnorithToPC::
 	end
 
 RustboroCity_DevonCorp_2F_EventScript_ReceivedAnorithFanfare::
-	bufferspeciesname STR_VAR_2, SPECIES_ANORITH
+@ Randomizer change: same as ReceivedLileepFanfare above.
+	bufferspeciesname STR_VAR_2, VAR_TEMP_TRANSFERRED_SPECIES
 	playfanfare MUS_OBTAIN_ITEM
 	message RustboroCity_DevonCorp_2F_Text_ReceivedMonFromResearcher
 	waitmessage
 	waitfanfare
-	bufferspeciesname STR_VAR_1, SPECIES_ANORITH
+	bufferspeciesname STR_VAR_1, VAR_TEMP_TRANSFERRED_SPECIES
 	return
 
 RustboroCity_DevonCorp_2F_EventScript_FinishReceivingAnorith::

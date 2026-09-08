@@ -27,3 +27,27 @@ revisited, the fix is to strengthen the safety net to guarantee at least two dam
 type chart is immune to two different attacking types at once, so this would close the gap entirely.
 Would need move `.type` data added to the runtime pool (`sRandomizerMovePool` currently only tracks
 `.power` and `.effect` via `sMoveIsDamaging`).
+
+## Fossil scientist only handles 0 or 1 fossil type cleanly
+The Devon Corp fossil scientist (Rustboro City, `data/maps/RustboroCity_DevonCorp_2F/scripts.inc`)
+now works without requiring the player to have any specific fossil item, and correctly uses/consumes
+an actual fossil if the player has exactly one type (`CheckPlayerFossilItem` / `GetFossilBaseSpecies`
+in `src/wild_encounter.c`), randomizing based on that fossil's real base species. However, if the
+player has zero, or two or more DIFFERENT fossil types at once, it falls back to a generic two-option
+choice labeled "Root Fossil"/"Claw Fossil" regardless of what's actually in the bag, and doesn't
+consume anything in that case. Multiple copies of the SAME fossil type are fine (still treated as
+"exactly one type").
+Accepted as-is for now, since properly supporting 3+ different fossil types simultaneously would need
+a dynamically-built choice menu (a new string/UI per possibility) rather than the existing fixed
+two-option multichoice, and fossils aren't especially common randomizer loot. If revisited, this would
+need either a dynamic multichoice built from whichever fossils the player is actually carrying, or a
+simpler UI (e.g. a scrollable list) that doesn't require a fixed string per combination.
+
+## Hidden items that randomize to a TM/HM can get double-randomized
+`RandomizeFieldItem` runs once for the hidden item itself (`src/field_control_avatar.c`), and if the
+result happens to be a TM, `ScrCmd_additem`'s separate TM-specific randomization (`src/scrcmd.c`) can
+run a second time on top of it, since it doesn't distinguish "already-randomized TM" from "TM straight
+from a script." Narrow edge case (~10% of hidden item pulls, only when the intermediate result happens
+to land on a TM). Accepted as-is for now. If revisited, this would need `RandomizeFieldItem` to tag its
+result somehow (or `ScrCmd_additem` to recognize it was called via the hidden-item path) so the TM
+randomization step is skipped when the item was already substituted upstream.

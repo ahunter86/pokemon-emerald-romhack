@@ -721,7 +721,21 @@ static bool8 TryStartMiscWalkingScripts(u16 metatileBehavior)
 {
     s16 x, y;
 
-    if (MetatileBehavior_IsCrackedFloorHole(metatileBehavior))
+    // Randomizer change: Sky Pillar's cracked floor holes normally
+    // always drop the player to the floor below when stepped on --
+    // MetatileBehavior_IsCrackedFloorHole below triggers unconditionally,
+    // there's no bike-speed check involved anywhere in this. Disable
+    // that specifically on Sky Pillar's floors so the tiles stay
+    // visible but are just walkable, removing the multi-floor maze
+    // navigation challenge without needing to edit the map's tile
+    // data directly.
+    if (MetatileBehavior_IsCrackedFloorHole(metatileBehavior)
+     && !(gSaveBlock1Ptr->location.mapGroup == MAP_GROUP(MAP_SKY_PILLAR_1F)
+       && (gSaveBlock1Ptr->location.mapNum == MAP_NUM(MAP_SKY_PILLAR_1F)
+        || gSaveBlock1Ptr->location.mapNum == MAP_NUM(MAP_SKY_PILLAR_2F)
+        || gSaveBlock1Ptr->location.mapNum == MAP_NUM(MAP_SKY_PILLAR_3F)
+        || gSaveBlock1Ptr->location.mapNum == MAP_NUM(MAP_SKY_PILLAR_4F)
+        || gSaveBlock1Ptr->location.mapNum == MAP_NUM(MAP_SKY_PILLAR_5F))))
     {
         ScriptContext_SetupScript(EventScript_FallDownHole);
         return TRUE;

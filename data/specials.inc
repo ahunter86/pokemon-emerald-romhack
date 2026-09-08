@@ -433,6 +433,9 @@ gSpecials::
 	def_special SetMirageTowerVisibility
 	def_special StartPlayerDescendMirageTower, waitstate=1
 	def_special BufferTMHMMoveName
+	def_special RandomizeGiftMonSpecies
+	def_special CheckPlayerFossilItem
+	def_special GetFossilBaseSpecies
 	def_special IsWirelessAdapterConnected
 	def_special TryBecomeLinkLeader, waitstate=1
 	def_special TryJoinLinkGroup, waitstate=1

@@ -237,6 +237,13 @@ void NewGameInitData(void)
     // start of a new save. Must come AFTER InitEventData(), which
     // memsets every flag back to unset.
     FlagSet(FLAG_REGI_DOORS_OPENED);
+    // Randomizer change: also skip each temple's own interior puzzle
+    // (Braille reading, footstep patterns, etc) -- these are gated by
+    // separate "puzzle completed" flags checked once inside each
+    // temple, independent of the door-opening flag above.
+    FlagSet(FLAG_SYS_REGIROCK_PUZZLE_COMPLETED);
+    FlagSet(FLAG_SYS_BRAILLE_REGICE_COMPLETED);
+    FlagSet(FLAG_SYS_REGISTEEL_PUZZLE_COMPLETED);
     ClearTVShowData();
     ResetGabbyAndTy();
     ClearSecretBases();
