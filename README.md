@@ -20,7 +20,7 @@ A personal randomizer ROM hack of Pokémon Emerald, built on [pokeemerald-expans
 - **Fly usable from the start of the game**, no badge required (still only flies to previously-visited locations)
 - **Hold R on a Pokémon's Skills page** to see its actual IVs (numeric values, not letter grades) instead of calculated stats
 - **Every Pokémon can learn every TM/HM** (species compatibility check removed for TM teaching specifically)
-- **Regi ruins streamlined**: no Relicanth/Wailord party requirement or dig-and-braille puzzle -- all three ruin entrances are open from the start of a new save
+- **Regi ruins streamlined**: no Relicanth/Wailord party requirement or dig-and-braille puzzle. All three ruin entrances are open from the start of a new save
 - Unlimited Rare Candy, max starting money, HMs usable without teaching them to a Pokémon
 
 See [`FEATURES.md`](FEATURES.md) for the full list of features inherited from the underlying `pokeemerald-expansion` engine.
